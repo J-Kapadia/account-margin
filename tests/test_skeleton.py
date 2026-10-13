@@ -25,9 +25,12 @@ def test_gen_is_deterministic(tmp_path):
     assert (a.books / "invoices.csv").read_bytes() != (c.books / "invoices.csv").read_bytes()
 
 
-def test_gen_needs_a_preset():
-    result = margin("gen", "--json")
-    assert result.code == 2
+def test_gen_without_a_preset_is_the_full_books_and_needs_the_prices(tmp_path):
+    # No --fixture means the full books, which need the author's price list (gate G1).
+    result = margin("gen", "--json", "--out", str(tmp_path / "books"),
+                    "--prices", str(tmp_path / "missing.csv"))
+    assert result.code == 4
+    assert "G1" in result.json["message"]
 
 
 def test_books_tie_to_the_ledger_in_integer_cents(tmp_path):

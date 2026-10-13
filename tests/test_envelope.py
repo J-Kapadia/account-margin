@@ -47,7 +47,7 @@ def test_explain_and_memo_envelopes(closed, tmp_path):
         (["close", "--month", "2026-03", "--check"], 4),  # truth/ absent (EC-01)
         (["memo", "--month", "2026-02"], 4),    # not closed
         (["explain", "cp/2026-03/acct_9999/revenue"], 2),  # unknown id
-        (["gen"], 2),                            # no preset
+        (["gen", "--prices", "/nonexistent/model_prices.csv"], 4),  # no price list: gate G1
     ],
 )
 def test_failure_envelopes(closed, args, code):

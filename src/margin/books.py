@@ -18,18 +18,41 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def write_manifest(books: Path) -> str:
-    """Write the manifest of every file under `books`; return the books id."""
-    lines = [
-        f"{file_sha256(p)}  {p.relative_to(books).as_posix()}"
-        for p in sorted(books.rglob("*"))
-        if p.is_file()
-    ]
-    manifest_path(books).write_text(
-        "# account-margin books manifest: sha256, two spaces, path\n" + "\n".join(lines) + "\n",
-        encoding="utf-8",
-    )
+def books_files(books: Path) -> list[Path]:
+    """The files of a books directory: flat, so nested books (`small/`, `scenario/`) and the
+    manifests of those nested books are not its own."""
+    return sorted(p for p in books.iterdir() if p.is_file() and not p.name.endswith(".manifest.sha256"))
+
+
+def write_manifest(
+    books: Path, header: dict[str, str] | None = None, names: tuple[str, ...] | None = None
+) -> str:
+    """Write the manifest of the books files (`names`, or every file); return the books id.
+
+    The header carries `# key: value` lines (config hashes, generator parameters); only the
+    file-hash lines make up the books id.
+    """
+    files = [books / n for n in sorted(names)] if names else books_files(books)
+    lines = [f"{file_sha256(p)}  {p.name}" for p in files]
+    head = ["# account-margin books manifest: sha256, two spaces, path"]
+    head += [f"# {key}: {value}" for key, value in (header or {}).items()]
+    manifest_path(books).write_text("\n".join(head + lines) + "\n", encoding="utf-8")
     return books_id_of(lines)
+
+
+def read_manifest(books: Path) -> tuple[dict[str, str], list[str]]:
+    """The manifest's header (key -> value) and its file-hash lines."""
+    path = manifest_path(books)
+    if not path.is_file():
+        raise MarginError(EXIT_PRECONDITION, f"no manifest for books {books}: run margin gen first")
+    header, lines = {}, []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# ") and ": " in line:
+            key, value = line[2:].split(": ", 1)
+            header[key] = value
+        elif line and not line.startswith("#"):
+            lines.append(line)
+    return header, lines
 
 
 def books_id_of(lines: list[str]) -> str:
@@ -38,13 +61,7 @@ def books_id_of(lines: list[str]) -> str:
 
 def read_books_id(books: Path) -> str:
     """`state.books.books_id`: the SHA-256 of the manifest's file-hash lines."""
-    path = manifest_path(books)
-    if not path.is_file():
-        raise MarginError(
-            EXIT_PRECONDITION, f"no manifest for books {books}: run margin gen first"
-        )
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln and ln[0] != "#"]
-    return books_id_of(lines)
+    return books_id_of(read_manifest(books)[1])
 
 
 def read_window(books: Path) -> tuple[str, str]:

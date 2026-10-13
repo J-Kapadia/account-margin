@@ -29,6 +29,7 @@ class Paths:
     warehouse: Path
     config: Path
     fixture: str | None
+    truth_explicit: bool = False  # --truth or MARGIN_TRUTH was given
 
     @property
     def lock(self) -> Path:
@@ -55,7 +56,8 @@ def resolve(
     default_warehouse = f"warehouse/{fixture}.duckdb" if fixture else "warehouse/margin.duckdb"
     warehouse_path = Path(warehouse or env.get("MARGIN_WAREHOUSE") or default_warehouse)
     config_path = Path(config or env.get("MARGIN_CONFIG_DIR") or "config")
-    return Paths(books_path, truth_path, warehouse_path, config_path, fixture)
+    explicit = truth is not None or bool(env.get("MARGIN_TRUTH"))
+    return Paths(books_path, truth_path, warehouse_path, config_path, fixture, explicit)
 
 
 def parse_month(value: str) -> str:

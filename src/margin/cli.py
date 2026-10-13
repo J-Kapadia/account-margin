@@ -13,7 +13,7 @@ from pathlib import Path
 import click
 
 from . import close as close_mod
-from . import envelope, explain as explain_mod, gen as gen_mod, load, memo as memo_mod
+from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, load, memo as memo_mod
 from .errors import (
     EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
 )
@@ -77,19 +77,50 @@ def main() -> None:
 @main.command()
 @click.option("--seed", type=int, default=gen_mod.DEFAULT_SEED, show_default=True)
 @click.option("--out", type=click.Path(path_type=Path), help="Books directory to write.")
+@click.option("--accounts", type=click.IntRange(min=1), default=None, help="Account count (300).")
+@click.option("--months", type=click.IntRange(min=1), default=None, help="Month count (12).")
+@click.option("--first-month", default=None, help="First month, YYYY-MM (2025-10).")
+@click.option("--prices", "prices_path", type=click.Path(path_type=Path), default=gen_config.DEFAULT_PRICES,
+              show_default=True, help="Model price list (the author's, or a fixture).")
+@click.option("--verify", is_flag=True, help="Check the manifest, the config hashes and a regeneration.")
 @common_options
-def gen(paths: Paths, seed: int, out: Path | None):
-    """Generate the books (Phase 0: --fixture small only)."""
-    if paths.fixture != "small":
+def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months: int | None,
+        first_month: str | None, prices_path: Path, verify: bool):
+    """Generate the books and the answer key, or verify them against the manifest."""
+    books = out or paths.books
+    truth = paths.truth if out is None or paths.truth_explicit else out.parent / "truth"
+    if paths.fixture == "small":
+        if verify:
+            raise MarginError(EXIT_USAGE, "--verify does not apply to --fixture small")
+        with warehouse_lock(paths.lock, exclusive=True):
+            summary = gen_mod.generate_small(books, seed)
+        return summary, [f"wrote {summary['accounts']} accounts, window "
+                         f"{summary['window']['first']}..{summary['window']['last']}, to {books}"]
+    preset = paths.fixture
+    if preset and (accounts or months or first_month):
         raise MarginError(
-            EXIT_USAGE, "only --fixture small is available yet: the full books and the "
-            "other presets land with the generator proper"
+            EXIT_USAGE, f"--fixture {preset} fixes the account count and the window: "
+            "drop --accounts, --months and --first-month"
         )
-    target = out or paths.books
+    if first_month:
+        first_month = parse_month(first_month)
+    config_dir = paths.config
+    if verify:
+        with warehouse_lock(paths.lock, exclusive=False):
+            summary = gen_mod.verify(books=books, truth=truth, config_dir=config_dir, prices_path=prices_path)
+        return summary, [f"books match the manifest ({summary['files']} files)"]
+    config = gen_config.load_config(config_dir)
+    prices = gen_config.load_prices(prices_path)
+    preset_args = gen_plan.PRESETS.get(preset or "", {})
     with warehouse_lock(paths.lock, exclusive=True):
-        summary = gen_mod.generate_small(target, seed)
+        summary = gen_mod.generate(
+            books=books, truth=truth, config=config, prices=prices, seed=seed, preset=preset,
+            n_accounts=preset_args.get("accounts", accounts or gen_plan.DEFAULT_ACCOUNTS),
+            n_months=preset_args.get("months", months or gen_plan.DEFAULT_MONTHS),
+            first_month=preset_args.get("first_month", first_month or gen_plan.DEFAULT_FIRST_MONTH),
+        )
     return summary, [f"wrote {summary['accounts']} accounts, window "
-                     f"{summary['window']['first']}..{summary['window']['last']}, to {target}"]
+                     f"{summary['window']['first']}..{summary['window']['last']}, to {books}"]
 
 
 @main.command()

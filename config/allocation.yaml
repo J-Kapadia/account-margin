@@ -1,0 +1,10 @@
+# Allocation rules for untagged shared cloud cost. Unsigned until the sign-off step.
+# `rules` lists every allowed rule; `recommended` is the rule the memo recommends.
+recommended: by_tokens
+rules:
+  by_tokens:
+    weight: input plus output tokens over the account's usage rows in the month
+  by_revenue:
+    weight: max(revenue_cents, 0)
+  equal_usage:
+    weight: 1 for each account with at least one usage row in the month

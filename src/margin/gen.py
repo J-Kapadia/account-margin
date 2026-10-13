@@ -1,9 +1,13 @@
-"""The generator (plan §7.2): seeded books for the `small` fixture.
+"""The generator (plan §7.2): seeded books, the hidden answer key and the manifest.
 
-`small` is 3 accounts and 2026-03 only. It plants no flags, reads no config and
-writes no `truth/`: Phase 0 computes revenue only, and the answer key arrives
-with the generator proper. Every random draw comes from a `random.Random`
-seeded per entity, so output is byte-stable and independent of generation order.
+`generate_small` is the Phase 0 `small` fixture: 3 accounts and 2026-03 only, no flags, no
+config, no `truth/`. `generate` is the generator proper (the full books and the `mini` and
+`scenario` presets): it reads the config directory and a price list, plants firm flags and
+decoys, writes `truth/`, and records the config hashes in the manifest header. `verify`
+compares a books directory, and a fresh regeneration, with that manifest.
+
+Every random draw comes from a `random.Random` seeded per entity, so output is byte-stable
+and independent of generation order.
 """
 
 from __future__ import annotations
@@ -15,9 +19,19 @@ import shutil
 from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 
-from .books import write_manifest
+import hashlib
+import tempfile
 
-DEFAULT_SEED = 20261013
+from . import gen_books, gen_plan
+from .books import read_manifest, write_manifest
+from .errors import EXIT_CONTROL, EXIT_USAGE, MarginError
+from .gen_config import Config, Prices, load_config, load_prices, sha256_file
+from .gen_plan import DEFAULT_ACCOUNTS, DEFAULT_FIRST_MONTH, DEFAULT_MONTHS
+from .paths import ROOT
+from .truth_reference import read_rates
+
+DEFAULT_SEED = gen_plan.DEFAULT_SEED
+SUPPORT_RATES_CSV = ROOT / "data" / "reference" / "support_rates.csv"
 MONTH = "2026-03"
 ISSUED = "2026-03-31"
 
@@ -111,3 +125,102 @@ def generate_small(out: Path, seed: int = DEFAULT_SEED) -> dict:
         "window": {"first": MONTH, "last": MONTH},
         "books_id": books_id,
     }
+
+
+# ---------------------------------------------------------------- the generator proper
+
+
+def _truth_digest(truth: Path) -> str:
+    lines = [f"{sha256_file(truth / name)}  {name}" for name in gen_books.TRUTH_FILES]
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+
+
+def _check_rates() -> None:
+    """The generator's own support rates and the reference file `close` reads must agree."""
+    if not SUPPORT_RATES_CSV.is_file() or read_rates(SUPPORT_RATES_CSV) != gen_plan.SUPPORT_RATES:
+        raise MarginError(
+            EXIT_USAGE, f"{SUPPORT_RATES_CSV} does not match the generator's support rate table"
+        )
+
+
+def generate(
+    *,
+    books: Path,
+    truth: Path,
+    config: Config,
+    prices: Prices,
+    seed: int = DEFAULT_SEED,
+    n_accounts: int = DEFAULT_ACCOUNTS,
+    n_months: int = DEFAULT_MONTHS,
+    first_month: str = DEFAULT_FIRST_MONTH,
+    preset: str | None = None,
+) -> dict:
+    """Write the books, `truth/` and the manifest; return a summary."""
+    _check_rates()
+    layout = gen_plan.build_layout(seed, n_accounts, first_month, n_months, preset)
+    ctx = gen_books.build_ctx(layout, config, prices)
+    rows, roles_by_month, evals = gen_books.build_books(ctx)
+    gen_books.write_books(layout, rows, books)
+    results = gen_books.write_truth(
+        ctx, truth, books, SUPPORT_RATES_CSV, prices.path, roles_by_month, evals, rows
+    )
+    header = {
+        "seed": str(seed), "accounts": str(n_accounts), "months": str(n_months),
+        "first_month": first_month, "fixture": preset or "none",
+        "policy_sha256": config.policy.sha256, "allocation_sha256": config.allocation.sha256,
+        "prices_sha256": prices.sha256, "truth_sha256": _truth_digest(truth),
+    }
+    books_id = write_manifest(books, header, gen_books.BOOKS_FILES)
+    firm = {m: sum(c.flag == "firm" for c in r.comps.values()) for m, r in results.items()}
+    soft = {m: sum(c.flag == "soft" for c in r.comps.values()) for m, r in results.items()}
+    return {
+        "books": str(books), "truth": str(truth), "seed": seed, "accounts": n_accounts,
+        "window": {"first": layout.months[0], "last": layout.months[-1]},
+        "books_id": books_id, "firm_per_month": firm, "decoys_per_month": soft,
+    }
+
+
+def _verify_failure(details: list[str]) -> MarginError:
+    return MarginError(
+        EXIT_CONTROL, details[0],
+        failed_controls=[{"id": "CHK-GEN-VERIFY", "violating_rows": len(details), "detail": details}],
+    )
+
+
+def verify(*, books: Path, truth: Path, config_dir: Path, prices_path: Path) -> dict:
+    """`gen --verify` (CHK-GEN-VERIFY): config, price list, books on disk and a fresh regeneration."""
+    header, lines = read_manifest(books)
+    config = load_config(config_dir)
+    prices = load_prices(prices_path)
+    stale = []
+    if config.policy.sha256 != header.get("policy_sha256") or config.allocation.sha256 != header.get("allocation_sha256"):
+        stale.append("config changed since the books were generated: regenerate")
+    if prices.sha256 != header.get("prices_sha256"):
+        stale.append("price list changed since the books were generated: regenerate")
+    if stale:
+        raise _verify_failure(stale)
+
+    drift = []
+    if books.is_dir():
+        names = [line.split("  ", 1)[1] for line in lines]
+        on_disk = [f"{sha256_file(books / n)}  {n}" if (books / n).is_file() else "" for n in names]
+        if on_disk != lines:
+            drift.append("books on disk differ from the manifest: regenerate")
+    if truth.is_dir() and header.get("truth_sha256"):
+        if not all((truth / n).is_file() for n in gen_books.TRUTH_FILES) or _truth_digest(truth) != header["truth_sha256"]:
+            drift.append("truth on disk differs from the manifest: regenerate")
+    with tempfile.TemporaryDirectory() as tmp:
+        fresh_books, fresh_truth = Path(tmp) / "books", Path(tmp) / "truth"
+        generate(
+            books=fresh_books, truth=fresh_truth, config=config, prices=prices,
+            seed=int(header["seed"]), n_accounts=int(header["accounts"]),
+            n_months=int(header["months"]), first_month=header["first_month"],
+            preset=None if header["fixture"] == "none" else header["fixture"],
+        )
+        _, fresh_lines = read_manifest(fresh_books)
+        fresh_header, _ = read_manifest(fresh_books)
+    if fresh_lines != lines or fresh_header["truth_sha256"] != header.get("truth_sha256"):
+        drift.append("generator output drifted from the manifest: regenerate and re-commit it")
+    if drift:
+        raise _verify_failure(drift)
+    return {"books": str(books), "files": len(lines), "seed": int(header["seed"])}

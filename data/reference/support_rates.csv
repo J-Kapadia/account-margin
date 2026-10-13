@@ -1,0 +1,4 @@
+tier,cents_per_minute,basis
+standard,90,synthetic policy
+priority,150,synthetic policy
+enterprise,240,synthetic policy
