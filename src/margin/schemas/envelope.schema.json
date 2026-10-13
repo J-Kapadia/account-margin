@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "margin-envelope-v1",
+  "title": "margin --json envelope, schema_version 1",
+  "type": "object",
+  "required": ["schema_version", "status", "exit"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"enum": ["ok", "fail"]},
+    "exit": {"type": "integer", "minimum": 0, "maximum": 255},
+    "month": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"},
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "violating_rows"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^(CTL|CHK)-[A-Z0-9-]+$"},
+          "status": {"enum": ["pass", "fail"]},
+          "violating_rows": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "failed_controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "violating_rows"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^(CTL|CHK)-[A-Z0-9-]+$"},
+          "violating_rows": {"type": "integer", "minimum": 0},
+          "detail": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "result_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "message": {"type": "string"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "ok"}}},
+      "then": {
+        "properties": {"exit": {"const": 0}},
+        "not": {"anyOf": [{"required": ["failed_controls"]}, {"required": ["message"]}]}
+      },
+      "else": {
+        "required": ["message"],
+        "properties": {"exit": {"minimum": 1}}
+      }
+    },
+    {
+      "if": {"properties": {"exit": {"const": 3}}, "required": ["exit"]},
+      "then": {"required": ["failed_controls"]}
+    }
+  ]
+}

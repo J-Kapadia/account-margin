@@ -1,0 +1,20 @@
+name: margin
+version: "0.1.0"
+config-version: 2
+profile: margin
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: target
+log-path: logs
+
+models:
+  margin:
+    stg_invoices:
+      +materialized: view
+      +schema: stg
+    fct_contribution_profit:
+      +materialized: table
+      +schema: mart
+    fct_pnl_tieout:
+      +materialized: table
+      +schema: mart

@@ -1,0 +1,9 @@
+# The warehouse path comes from `margin`, which sets MARGIN_WAREHOUSE_PATH for the
+# dbt subprocess. One thread keeps every run deterministic (plan §6.3).
+margin:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('MARGIN_WAREHOUSE_PATH') }}"
+      threads: 1

@@ -1,0 +1,4 @@
+# dbt state that must never be committed
+target/
+logs/
+.user.yml

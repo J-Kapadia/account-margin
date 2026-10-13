@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme AI contribution memo, {{ month }}</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .25rem .5rem; border-bottom: 1px solid #ccc; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } th, td { border-color: #444; } }
+</style>
+</head>
+<body>
+<h1>Acme AI contribution memo, {{ month }}</h1>
+
+<h2>What this memo measures</h2>
+<p>Contribution profit is revenue, net of credits and discounts, less inference cost, cloud cost
+(direct plus allocated shared) and support cost. Support is part of cost of revenue. This is the
+project's own definition, not any company's.</p>
+<p>This is the walking-skeleton memo. It reports revenue only: the cost components, the allocation
+rules and the flags are not built yet, so no profit or margin is shown.</p>
+<p>All figures are synthetic. The books belong to a generated company, "Acme AI".</p>
+
+<h2>Headline</h2>
+<p>Total revenue for {{ month }}: <strong>{{ ('rollup/' ~ month ~ '/revenue') | num }}</strong>.</p>
+
+<h2>Revenue by account</h2>
+<table>
+<thead><tr><th>Account</th><th>Name</th><th class="n">Revenue</th></tr></thead>
+<tbody>
+{% for a in accounts %}
+<tr><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td><td class="n">{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/revenue') | num }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>Tie-out to the general ledger</h2>
+<p>Account revenue less the ledger, by revenue code. Every difference must be zero for the month to close.</p>
+<table>
+<thead><tr><th>GL code</th><th class="n">Difference</th></tr></thead>
+<tbody>
+{% for code in gl_codes %}
+<tr><td>{{ code }}</td><td class="n">{{ ('pnl/' ~ month ~ '/' ~ code) | num }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>Where each number comes from</h2>
+<p>Every figure above carries its number ID. <code>margin explain &lt;number-id&gt;</code> prints the
+chain from the figure down to the hashed source rows.</p>
+</body>
+</html>

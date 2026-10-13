@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: stg_invoices
+    columns:
+      - name: line_id
+        tests: [unique, not_null]
+      - name: line_type
+        tests:
+          - accepted_values:
+              values: [platform_fee, usage, credit]
+  - name: fct_contribution_profit
+    columns:
+      - name: account_id
+        tests: [not_null]
+      - name: revenue_cents
+        tests: [not_null]
+  - name: fct_pnl_tieout
+    columns:
+      - name: gl_code
+        tests: [not_null]

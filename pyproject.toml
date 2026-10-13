@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "account-margin"
+version = "0.1.0.dev0"
+description = "Contribution profit by customer account, rolled forward monthly, with controls."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "click>=8.1",
+    "dbt-core==1.12.5",
+    "dbt-duckdb==1.11.0",
+    "duckdb==1.5.6",
+    "jinja2>=3.1",
+]
+
+[project.scripts]
+margin = "margin.cli:main"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.100",
+    "jsonschema>=4.20",
+    "pytest>=8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/margin"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The cache stays under the ignored .venv/ so a test run leaves no untracked files.
+cache_dir = ".venv/.pytest_cache"
+markers = ["slow: runs the full books; excluded from the per-bead --fast subset"]

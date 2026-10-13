@@ -1,0 +1,38 @@
+
+# Secrets (public repository)
+*.env
+.env.*
+*.pem
+*.key
+
+# Generated data and build output (never committed)
+warehouse/
+data/books/
+data/truth/
+site/
+dbt/target/
+dbt/logs/
+
+# Build and tool state
+node_modules/
+dist/
+build/
+target/
+__pycache__/
+*.pyc
+.venv/
+*.log
+.DS_Store
+.claude/settings.local.json
+
+# Private: versioned in .private.git, never in this repository
+/.private.git/
+/docs/plan/
+/docs/notes/
+/docs/research/
+/docs/build-log/
+/notes/
+/AGENTS.md
+/CLAUDE.md
+/.needle.yaml
+/.beads/
