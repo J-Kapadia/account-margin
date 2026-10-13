@@ -1,0 +1,79 @@
+{
+ "2026-02": [
+  {
+   "account_id": "acct_0006",
+   "reason_code": "MODEL_MIX"
+  },
+  {
+   "account_id": "acct_0008",
+   "reason_code": "DEEP_DISCOUNT"
+  },
+  {
+   "account_id": "acct_0010",
+   "reason_code": "DEDICATED_CLOUD"
+  },
+  {
+   "account_id": "acct_0011",
+   "reason_code": "SUPPORT_LOAD"
+  },
+  {
+   "account_id": "acct_0012",
+   "reason_code": "MODEL_MIX"
+  }
+ ],
+ "2026-03": [
+  {
+   "account_id": "acct_0006",
+   "reason_code": "MODEL_MIX"
+  },
+  {
+   "account_id": "acct_0008",
+   "reason_code": "DEEP_DISCOUNT"
+  },
+  {
+   "account_id": "acct_0010",
+   "reason_code": "DEDICATED_CLOUD"
+  },
+  {
+   "account_id": "acct_0011",
+   "reason_code": "SUPPORT_LOAD"
+  },
+  {
+   "account_id": "acct_0012",
+   "reason_code": "MODEL_MIX"
+  }
+ ],
+ "2026-04": [
+  {
+   "account_id": "acct_0006",
+   "reason_code": "MODEL_MIX"
+  },
+  {
+   "account_id": "acct_0007",
+   "reason_code": "SUPPORT_LOAD"
+  },
+  {
+   "account_id": "acct_0010",
+   "reason_code": "DEDICATED_CLOUD"
+  },
+  {
+   "account_id": "acct_0011",
+   "reason_code": "SUPPORT_LOAD"
+  },
+  {
+   "account_id": "acct_0012",
+   "reason_code": "MODEL_MIX"
+  }
+ ],
+ "decoys": {
+  "2026-02": [
+   "acct_0009"
+  ],
+  "2026-03": [
+   "acct_0009"
+  ],
+  "2026-04": [
+   "acct_0009"
+  ]
+ }
+}

@@ -137,7 +137,8 @@ def build_records(
              revenue_query(account_id, month))
 
     tieout = con.execute(
-        "SELECT gl_code, diff_cents FROM mart.fct_pnl_tieout WHERE month = ? ORDER BY gl_code",
+        "SELECT gl_code, diff_cents FROM mart.fct_pnl_tieout "
+        f"WHERE month = ? AND gl_code IN ({', '.join(repr(c) for c in GL_CODES)}) ORDER BY gl_code",
         [month_date(month)],
     ).fetchall()
     for gl_code, diff in tieout:

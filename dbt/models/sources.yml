@@ -4,5 +4,12 @@ sources:
   - name: raw
     schema: raw
     tables:
+      - name: accounts
       - name: invoices
+      - name: usage_monthly
+      - name: provider_invoices
+      - name: cloud_focus
+      - name: support_tickets
       - name: gl
+      - name: ref_model_prices
+      - name: ref_support_rates

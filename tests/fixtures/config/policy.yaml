@@ -1,0 +1,27 @@
+# Fixture config for the committed `mini` books: same keys as config/, values chosen so the
+# fixture meets its guard bands. Signed separately, so tuning the real config never touches it.
+# Flags use the integer predicate: contribution_profit_cents * 100 < floor_pct * revenue_cents.
+floor_pct: 30
+
+# Classifier: each driver is divided by max(cohort lower median, median_floor); the largest
+# multiple wins, ties in the order below; NONE when no multiple exceeds 1.
+cohort_rule: usage_row_and_positive_revenue
+reason_margin: 1.0
+drivers:
+  - code: DEEP_DISCOUNT
+    definition: discount_pct
+    median_floor: 0.01
+  - code: MODEL_MIX
+    definition: inference_cost / list_price_revenue
+    median_floor: 0.01
+  - code: SUPPORT_LOAD
+    definition: support_cost / list_price_revenue
+    median_floor: 0.01
+  - code: DEDICATED_CLOUD
+    definition: direct_cloud_cost / list_price_revenue
+    median_floor: 0.01
+
+# Guard bands, in percentage points of margin from the floor.
+planted_band_pts: 5
+unplanted_band_pts: 3
+decoy_band_pts: 2

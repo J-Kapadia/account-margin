@@ -1,0 +1,10 @@
+provider,model,month,tokens,amount_cents
+fixture-vendor-a,fixture-large,2026-02,561103000,840539
+fixture-vendor-b,fixture-medium,2026-02,876525000,394418
+fixture-vendor-a,fixture-small,2026-02,4019942000,302285
+fixture-vendor-a,fixture-large,2026-03,471695000,712994
+fixture-vendor-b,fixture-medium,2026-03,673378000,311282
+fixture-vendor-a,fixture-small,2026-03,5508212000,395441
+fixture-vendor-a,fixture-large,2026-04,391103000,603204
+fixture-vendor-b,fixture-medium,2026-04,670726000,311193
+fixture-vendor-a,fixture-small,2026-04,6500223000,469286

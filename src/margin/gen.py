@@ -23,6 +23,7 @@ import hashlib
 import tempfile
 
 from . import gen_books, gen_plan
+from . import truth_reference as ref
 from .books import read_manifest, write_manifest
 from .errors import EXIT_CONTROL, EXIT_USAGE, MarginError
 from .gen_config import Config, Prices, load_config, load_prices, sha256_file
@@ -135,6 +136,49 @@ def _truth_digest(truth: Path) -> str:
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
 
 
+MART_COLS = [
+    "month", "rule", "account_id", "revenue_cents", "inference_cost_cents", "cloud_direct_cents",
+    "cloud_shared_cents", "support_cost_cents", "contribution_profit_cents", "margin_pct",
+    "trailing3_margin_pct", "below_floor",
+]
+EXPECTED_MART = "mini_expected_mart.csv"
+
+
+def _month_index(month: str) -> int:
+    return int(month[:4]) * 12 + int(month[5:]) - 1
+
+
+def expected_mart_rows(results: dict, rules: tuple[str, ...] | list[str]) -> list[list]:
+    """`fct_contribution_by_rule` as the Python reference computes it, one row per account,
+    rule and month. `margin_pct` and the trailing margin are four-decimal text, `n/a` at zero
+    revenue; the trailing margin is a ratio of sums over the month and up to two months before."""
+    rows = []
+    for month in sorted(results):
+        for rule in rules:
+            for account_id in sorted(results[month].comps):
+                c = results[month].comps[account_id]
+                window = [
+                    results[m].comps[account_id] for m in sorted(results)
+                    if _month_index(month) - 2 <= _month_index(m) <= _month_index(month)
+                    and account_id in results[m].comps
+                ]
+                trailing = ref.margin_pct(sum(w.profit[rule] for w in window), sum(w.revenue for w in window))
+                shown = ref.margin_pct(c.profit[rule], c.revenue)
+                rows.append([
+                    month, rule, account_id, c.revenue, c.inference, c.direct, c.shared[rule], c.support,
+                    c.profit[rule], "n/a" if shown is None else str(shown),
+                    "n/a" if trailing is None else str(trailing), str(c.below[rule]).lower(),
+                ])
+    return rows
+
+
+def write_expected_mart(path: Path, results: dict, rules: tuple[str, ...] | list[str]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh, lineterminator="\n")
+        writer.writerow(MART_COLS)
+        writer.writerows(expected_mart_rows(results, rules))
+
+
 def _check_rates() -> None:
     """The generator's own support rates and the reference file `close` reads must agree."""
     if not SUPPORT_RATES_CSV.is_file() or read_rates(SUPPORT_RATES_CSV) != gen_plan.SUPPORT_RATES:
@@ -164,6 +208,9 @@ def generate(
     results = gen_books.write_truth(
         ctx, truth, books, SUPPORT_RATES_CSV, prices.path, roles_by_month, evals, rows
     )
+    if preset == "mini":
+        # The expected mart sits beside the committed truth: tests/fixtures/mini_expected_mart.csv.
+        write_expected_mart(truth.parent / EXPECTED_MART, results, config.allocation.rules)
     header = {
         "seed": str(seed), "accounts": str(n_accounts), "months": str(n_months),
         "first_month": first_month, "fixture": preset or "none",

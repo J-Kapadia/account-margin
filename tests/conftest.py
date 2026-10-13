@@ -81,3 +81,45 @@ def closed_copy(closed, tmp_path) -> Workspace:
     shutil.copy(closed.books.parent / "books.manifest.sha256", tmp_path / "books.manifest.sha256")
     shutil.copy(closed.warehouse, ws.warehouse)
     return ws
+
+
+# ------------------------------------------------------------------ the committed `mini` fixture
+
+FIXTURES = ROOT / "tests" / "fixtures"
+MINI_BOOKS = FIXTURES / "books"
+MINI_TRUTH = FIXTURES / "truth"
+MINI_CONFIG = FIXTURES / "config"
+MINI_PRICES = FIXTURES / "model_prices.csv"
+MINI_WINDOW = ("2026-02", "2026-04")
+
+
+def build_mini_warehouse(books: Path, warehouse: Path, config_dir: Path = MINI_CONFIG,
+                         window: tuple[str, str] = MINI_WINDOW) -> Path:
+    """Load `books` and run the dbt project over them: models and tests, no controls, no
+    sign-off. The close pipeline proper (gate, provenance, state) is a separate step."""
+    from margin import dbt_runner, load
+    from margin.warehouse import connect, init_schemas
+
+    con = connect(warehouse)
+    try:
+        init_schemas(con)
+        load.load_months(con, books, window[0], window[1], "test")
+        load.load_reference(con, MINI_PRICES)
+    finally:
+        con.close()
+    dbt_runner.build(warehouse, config_dir)
+    return warehouse
+
+
+@pytest.fixture(scope="session")
+def mini_warehouse(tmp_path_factory) -> Path:
+    """The `mini` books built once with the fixture config; read-only for the tests."""
+    return build_mini_warehouse(MINI_BOOKS, tmp_path_factory.mktemp("mini") / "mini.duckdb")
+
+
+@pytest.fixture
+def mini_books_copy(tmp_path) -> Path:
+    """A private copy of the `mini` books for tests that tamper with them."""
+    books = tmp_path / "books"
+    shutil.copytree(MINI_BOOKS, books)
+    return books

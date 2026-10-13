@@ -1,0 +1,11 @@
+# Fixture config for the committed `mini` books: same keys as config/, values chosen so the
+# fixture meets its guard bands. Signed separately, so tuning the real config never touches it.
+# `rules` lists every allowed rule; `recommended` is the rule the memo recommends.
+recommended: by_tokens
+rules:
+  by_tokens:
+    weight: input plus output tokens over the account's usage rows in the month
+  by_revenue:
+    weight: max(revenue_cents, 0)
+  equal_usage:
+    weight: 1 for each account with at least one usage row in the month

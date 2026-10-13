@@ -14,6 +14,7 @@ import click
 
 from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, load, memo as memo_mod
+from . import signoff as signoff_mod
 from .errors import (
     EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
 )
@@ -183,3 +184,19 @@ def memo(paths: Paths, month: str, out: Path):
     return {"month": month, "out": str(out), "files": [str(f) for f in files]}, [
         f"wrote {f}" for f in files
     ]
+
+
+@main.command()
+@click.option("--signer", required=True, help="Name of the signer.")
+@click.option("--role", required=True, help="Role of the signer, for example finance_owner.")
+@common_options
+def signoff(paths: Paths, signer: str, role: str):
+    """Sign the allocation and policy configs. Human-only: needs a terminal."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        raise MarginError(
+            EXIT_PRECONDITION,
+            "signoff needs a terminal: a person signs, a script or an agent does not",
+        )
+    path = signoff_mod.write_for(paths.config, signer=signer, role=role)
+    rule, policy = signoff_mod.config_hashes(paths.config)
+    return {"signoff": str(path), "rule_sha256": rule, "policy_sha256": policy}, [f"wrote {path}"]

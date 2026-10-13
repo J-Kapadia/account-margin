@@ -1,6 +1,6 @@
 """`close` (plan §6.2, §6.5): load, build, control, record provenance, mark the month closed.
 
-Phase 0 allocates nothing, so no sign-off gate runs. Earlier months of the books'
+The sign-off gate is not wired in yet, so no sign-off is checked. Earlier months of the books'
 window are closed first, in order (catch-up); a month that fails a control stays
 without a `close_state` row. The state is derived: dbt rebuilds every mart on each close.
 """
@@ -50,10 +50,11 @@ def close_month(paths: Paths, month: str) -> dict:
         init_schemas(con)
         load.check_books_identity(con, paths.books)
         load.load_months(con, paths.books, first, month, run_id)
+        load.load_reference(con, paths.prices)
     finally:
         con.close()  # dbt needs the file: margin holds no connection while it runs
 
-    dbt_runner.build(paths.warehouse)
+    dbt_runner.build(paths.warehouse, paths.config)
 
     con = connect(paths.warehouse)
     try:

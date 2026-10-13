@@ -4,17 +4,30 @@ config-version: 2
 profile: margin
 model-paths: ["models"]
 macro-paths: ["macros"]
+test-paths: ["tests"]
 target-path: target
 log-path: logs
 
+# `margin` passes the signed configuration as --vars on every run (the allowed rules, the signed
+# rule, the floor and the drivers); these defaults let `dbt compile` run without it.
+vars:
+  rules: [by_tokens, by_revenue, equal_usage]
+  signed_rule: by_tokens
+  floor_pct: "30"
+  drivers:
+    - {code: DEEP_DISCOUNT, median_floor: "0.01"}
+    - {code: MODEL_MIX, median_floor: "0.01"}
+    - {code: SUPPORT_LOAD, median_floor: "0.01"}
+    - {code: DEDICATED_CLOUD, median_floor: "0.01"}
+
 models:
   margin:
-    stg_invoices:
+    staging:
       +materialized: view
       +schema: stg
-    fct_contribution_profit:
+    intermediate:
       +materialized: table
-      +schema: mart
-    fct_pnl_tieout:
+      +schema: intermediate
+    marts:
       +materialized: table
       +schema: mart

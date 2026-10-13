@@ -1,0 +1,4 @@
+provider,model,input_per_mtok,output_per_mtok
+fixture-vendor-a,fixture-large,10.00,30.00
+fixture-vendor-b,fixture-medium,3.00,9.00
+fixture-vendor-a,fixture-small,0.50,1.50

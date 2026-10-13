@@ -15,6 +15,11 @@ from .errors import EXIT_USAGE, MarginError
 # src/margin/paths.py -> the repository root holding dbt/, controls/ and tests/.
 ROOT = Path(__file__).resolve().parents[2]
 
+DEFAULT_PRICES = "data/reference/model_prices.csv"
+# The committed `mini` books were generated against this price list, so the fixture
+# closes against it too, not against the author's real list.
+FIXTURE_PRICES = {"mini": "tests/fixtures/model_prices.csv"}
+
 FIXTURE_BOOKS = {
     "small": ("data/books/small", "data/truth/small"),
     "mini": ("tests/fixtures/books", "tests/fixtures/truth"),
@@ -30,6 +35,7 @@ class Paths:
     config: Path
     fixture: str | None
     truth_explicit: bool = False  # --truth or MARGIN_TRUTH was given
+    prices: Path = Path("data/reference/model_prices.csv")  # the pinned model price list
 
     @property
     def lock(self) -> Path:
@@ -57,7 +63,8 @@ def resolve(
     warehouse_path = Path(warehouse or env.get("MARGIN_WAREHOUSE") or default_warehouse)
     config_path = Path(config or env.get("MARGIN_CONFIG_DIR") or "config")
     explicit = truth is not None or bool(env.get("MARGIN_TRUTH"))
-    return Paths(books_path, truth_path, warehouse_path, config_path, fixture, explicit)
+    prices_path = Path(env.get("MARGIN_PRICES") or FIXTURE_PRICES.get(fixture or "", DEFAULT_PRICES))
+    return Paths(books_path, truth_path, warehouse_path, config_path, fixture, explicit, prices_path)
 
 
 def parse_month(value: str) -> str:

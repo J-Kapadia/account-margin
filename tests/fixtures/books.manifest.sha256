@@ -1,0 +1,18 @@
+# account-margin books manifest: sha256, two spaces, path
+# seed: 20261013
+# accounts: 12
+# months: 3
+# first_month: 2026-02
+# fixture: mini
+# policy_sha256: 83bb046dc6420791e7cfba21f1920c5eac8761f1a41a549118dab803ab5ba5f2
+# allocation_sha256: 7ee52cbb108d07cc78a2b6534797b2970c002e712323f4c03986e62be16e9c75
+# prices_sha256: a55a99cc12a8b1d7d69baffa3b446803a13bf5eeb6757c18eb9eb65affbe9eb1
+# truth_sha256: d80abf8b1a285fa6e8d44c9abf4e9f9b6f1a25cdceec6789923177593b48b46f
+595e63e4df5111a0fa946b624c47ba9b0e3cfb4abede536c7a06a78a2f727717  accounts.csv
+aa2d06e7f4faf6a4221b37318bb36482f503c1c3ba8519958a9f43a5ca339f8f  cloud_focus.csv
+e3896d451686b20ba960d06a9df458d8b5be008eff444b8032ba42076dd54d3d  gl.csv
+c4db573c89577aefb8acaa40d4fd955c1db192d13bee4122f2151ed4ad829a04  invoices.csv
+d24fd1c587d0c589265626a40655d830583b6fd559a0249643de7cd9e02b27fd  provider_invoices.csv
+f39d9a59d276210332be148840fc15dd8a6655faabb7f74ef9acdf6c695a1a30  support_tickets.csv
+2cecb2a293db3394915b6b3c9036310921f02896e00289a19a87ba90af375f90  usage_monthly.csv
+b9399cff0950092be229d3c6b5a4aac2faa41ef828cb2a97f271fe127e3b669f  window.json

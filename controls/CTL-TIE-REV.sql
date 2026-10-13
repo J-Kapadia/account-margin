@@ -18,5 +18,5 @@ select
     'GL ' || t.gl_code || ': ledger ' || t.gl_cents || ' cents, accounts ' || t.accounts_cents
         || ' cents, difference ' || t.diff_cents || ' cents' as description
 from mart.fct_pnl_tieout t
-where t.month = $month and t.diff_cents <> 0
+where t.month = $month and t.gl_code in ('4000', '4100', '4900') and t.diff_cents <> 0
 order by number_id

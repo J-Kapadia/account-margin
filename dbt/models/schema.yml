@@ -9,13 +9,75 @@ models:
         tests:
           - accepted_values:
               values: [platform_fee, usage, credit]
+  - name: stg_accounts
+    columns:
+      - name: account_id
+        tests: [unique, not_null]
+      - name: discount_pct
+        tests:
+          - value_in_range:
+              min_value: 0
+              max_value_exclusive: 1
+  - name: stg_model_prices
+    columns:
+      - name: model
+        tests: [unique, not_null]
+  - name: int_account_month
+    tests:
+      - unique_combination:
+          columns: [month, account_id]
+  - name: int_account_facts
+    tests:
+      - unique_combination:
+          columns: [month, account_id]
+  - name: int_inference_cost
+    tests:
+      - unique_combination:
+          columns: [month, account_id]
+  - name: int_cloud_shared
+    tests:
+      - unique_combination:
+          columns: [month, rule, account_id]
+  - name: fct_contribution_by_rule
+    tests:
+      - unique_combination:
+          columns: [month, rule, account_id]
+    columns:
+      - name: rule
+        tests:
+          - accepted_values:
+              values: [by_tokens, by_revenue, equal_usage]
+      - name: revenue_cents
+        tests: [not_null]
+      - name: contribution_profit_cents
+        tests: [not_null]
   - name: fct_contribution_profit
+    tests:
+      - unique_combination:
+          columns: [month, account_id]
     columns:
       - name: account_id
         tests: [not_null]
       - name: revenue_cents
         tests: [not_null]
+  - name: fct_flags
+    tests:
+      - unique_combination:
+          columns: [month, account_id]
+    columns:
+      - name: flag
+        tests:
+          - not_null
+          - accepted_values:
+              values: [firm, soft, none]
+      - name: reason_code
+        tests:
+          - accepted_values:
+              values: [DEEP_DISCOUNT, MODEL_MIX, SUPPORT_LOAD, DEDICATED_CLOUD, NONE]
   - name: fct_pnl_tieout
+    tests:
+      - unique_combination:
+          columns: [month, gl_code]
     columns:
       - name: gl_code
         tests: [not_null]

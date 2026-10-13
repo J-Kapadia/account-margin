@@ -12,15 +12,34 @@ import duckdb
 
 from .books import months_between, read_books_id
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, EXIT_USAGE, MarginError
+from .paths import ROOT
 from .warehouse import month_date
 
-# table -> (csv file, SQL expression for the month of a row; None = not monthly)
+# table -> (csv file, SQL expression for the month of a row as YYYY-MM; None = not monthly).
+# The month of a FOCUS row is that of ChargePeriodStart; a ticket's is that of its closed_date,
+# and a ticket still open has none.
 TABLES = {
     "accounts": ("accounts.csv", None),
-    "invoices": ("invoices.csv", "service_period"),
-    "usage_monthly": ("usage_monthly.csv", "month"),
-    "gl": ("gl.csv", "gl_period"),
+    "invoices": ("invoices.csv", '"service_period"'),
+    "usage_monthly": ("usage_monthly.csv", '"month"'),
+    "provider_invoices": ("provider_invoices.csv", '"month"'),
+    "cloud_focus": ("cloud_focus.csv", 'substr("ChargePeriodStart", 1, 7)'),
+    "support_tickets": ("support_tickets.csv", 'substr(nullif("closed_date", \'\'), 1, 7)'),
+    "gl": ("gl.csv", '"gl_period"'),
 }
+# Books that may be absent (the `small` fixture has no costs): an empty table with these
+# columns stands in, so the models read the same tables whatever the books hold.
+OPTIONAL_COLUMNS = {
+    "provider_invoices": ["provider", "model", "month", "tokens", "amount_cents"],
+    "cloud_focus": [
+        "ChargePeriodStart", "ChargePeriodEnd", "BilledCost", "EffectiveCost", "BillingCurrency",
+        "ServiceName", "ServiceCategory", "ResourceId", "Tags", "line_id",
+    ],
+    "support_tickets": ["ticket_id", "account_id", "opened_date", "closed_date", "handle_minutes", "tier"],
+}
+REFERENCE_DIR = ROOT / "data" / "reference"
+PRICES_CSV = "model_prices.csv"
+PRICE_COLUMNS = ["provider", "model", "input_per_mtok", "output_per_mtok", "source_url", "retrieved_on"]
 
 
 def _read_sql(csv_path: Path) -> str:
@@ -57,13 +76,22 @@ def check_books_identity(con: duckdb.DuckDBPyConnection, books: Path) -> str:
 
 def _stage(con: duckdb.DuckDBPyConnection, books: Path, table: str, run_id: str) -> list[str]:
     """Stage one books file into a temp table with `_row_hash`, `_month`, `_load_id`."""
-    csv_name, month_col = TABLES[table]
+    csv_name, month_expr = TABLES[table]
     csv_path = (books / csv_name).resolve()
     if not csv_path.is_file():
-        raise MarginError(EXIT_PRECONDITION, f"no {csv_name} in {books}: run margin gen first")
+        if table not in OPTIONAL_COLUMNS:
+            raise MarginError(EXIT_PRECONDITION, f"no {csv_name} in {books}: run margin gen first")
+        cols = OPTIONAL_COLUMNS[table]
+        con.execute(
+            f"CREATE OR REPLACE TEMP TABLE stage_{table} AS SELECT "
+            + ", ".join(f'CAST(NULL AS VARCHAR) AS "{c}"' for c in cols)
+            + ", CAST(NULL AS VARCHAR) AS _row_hash, CAST(NULL AS DATE) AS _month, "
+            "CAST(NULL AS VARCHAR) AS _load_id WHERE false"
+        )
+        return cols
     cols = _columns(con, csv_path)
     fields = " || chr(31) || ".join(f'coalesce("{c}", chr(0))' for c in cols)
-    month_sql = f"CAST(\"{month_col}\" || '-01' AS DATE)" if month_col else "CAST(NULL AS DATE)"
+    month_sql = f"CAST(({month_expr}) || '-01' AS DATE)" if month_expr else "CAST(NULL AS DATE)"
     con.execute(
         f"""
         CREATE OR REPLACE TEMP TABLE stage_{table} AS
@@ -82,7 +110,7 @@ def load_months(
     con: duckdb.DuckDBPyConnection, books: Path, first: str, last: str, run_id: str
 ) -> None:
     """Load every month in `first..last` that is absent; verify the ones present."""
-    for table, (_, month_col) in TABLES.items():
+    for table, (_, month_expr) in TABLES.items():
         cols = _stage(con, books, table, run_id)
         exists = con.execute(
             "SELECT count(*) FROM information_schema.tables "
@@ -91,7 +119,8 @@ def load_months(
         ).fetchone()[0]
         if not exists:
             con.execute(f"CREATE TABLE raw.{table} AS SELECT * FROM stage_{table} WHERE false")
-        groups = [None] if month_col is None else [month_date(m) for m in months_between(first, last)]
+        # A monthly table also has the group of rows with no month (a ticket not yet closed).
+        groups = [None] if month_expr is None else [month_date(m) for m in months_between(first, last)] + [None]
         for group in groups:
             cond = "_month IS NULL" if group is None else f"_month = DATE '{group}'"
             have = con.execute(
@@ -111,3 +140,50 @@ def load_months(
                     EXIT_CONTROL, f"raw.{table}: {label} changed since it was loaded"
                 )
         con.execute(f"DROP TABLE stage_{table}")
+
+
+def _reference_files(prices: Path) -> dict[str, Path]:
+    """Every data/reference/*.csv as `ref_<stem>`; the price list comes from `prices`."""
+    files = {
+        f"ref_{p.stem}": p for p in sorted(REFERENCE_DIR.glob("*.csv")) if p.name != PRICES_CSV
+    }
+    files["ref_model_prices"] = prices
+    return files
+
+
+def load_reference(con: duckdb.DuckDBPyConnection, prices: Path) -> None:
+    """Load the reference files into `raw.ref_*`, each row with a `_row_hash` and no month.
+
+    A reference table is replaced by the file as it is now; a changed price enters the digests
+    of the numbers that use it, which is how a restatement shows. An absent price
+    list (the author has not sourced it yet) is an empty table, so the models still compile.
+    """
+    for table, path in _reference_files(prices).items():
+        if path.is_file():
+            cols = _columns(con, path)
+            fields = " || chr(31) || ".join(f'coalesce("{c}", chr(0))' for c in cols)
+            quoted = ", ".join(f'"{c}"' for c in cols)
+            select = (
+                f"SELECT {quoted}, "
+                f"md5('{path.name}' || chr(31) || CAST(_ordinal AS VARCHAR) || chr(31) || {fields}) AS _row_hash, "
+                "CAST(NULL AS DATE) AS _month, '' AS _load_id "
+                f"FROM (SELECT *, row_number() OVER () AS _ordinal FROM {_read_sql(path.resolve())})"
+            )
+        elif table == "ref_model_prices":
+            cols = PRICE_COLUMNS
+            select = (
+                "SELECT " + ", ".join(f'CAST(NULL AS VARCHAR) AS "{c}"' for c in cols)
+                + ", CAST(NULL AS VARCHAR) AS _row_hash, CAST(NULL AS DATE) AS _month, "
+                "CAST(NULL AS VARCHAR) AS _load_id WHERE false"
+            )
+        else:
+            continue
+        exists = con.execute(
+            "SELECT count(*) FROM information_schema.tables "
+            "WHERE table_schema = 'raw' AND table_name = ?", [table],
+        ).fetchone()[0]
+        if exists:
+            con.execute(f"DELETE FROM raw.{table}")
+            con.execute(f"INSERT INTO raw.{table} {select}")
+        else:
+            con.execute(f"CREATE TABLE raw.{table} AS {select}")

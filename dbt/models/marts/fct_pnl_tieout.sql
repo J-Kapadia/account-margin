@@ -1,4 +1,5 @@
--- Revenue GL codes against the account sums of the invoice lines that book to them.
+-- The ledger against the account sums, per month and GL code: revenue lines by type, then the
+-- three cost codes from the signed rule's account rows (cloud is direct plus allocated shared).
 with accounts_side as (
     select
         month,
@@ -10,14 +11,21 @@ with accounts_side as (
         cast(sum(amount_cents) as bigint) as accounts_cents
     from {{ ref('stg_invoices') }}
     group by 1, 2
+    union all
+    select month, '5100', cast(sum(inference_cost_cents) as bigint) from {{ ref('fct_contribution_profit') }} group by month
+    union all
+    select month, '5200', cast(sum(cloud_direct_cents + cloud_shared_cents) as bigint)
+    from {{ ref('fct_contribution_profit') }} group by month
+    union all
+    select month, '5300', cast(sum(support_cost_cents) as bigint) from {{ ref('fct_contribution_profit') }} group by month
 ),
 gl_side as (
     select
-        cast(gl_period || '-01' as date) as month,
+        month,
         gl_code,
-        cast(sum(cast(amount_cents as bigint)) as bigint) as gl_cents
-    from {{ source('raw', 'gl') }}
-    where gl_code in ('4000', '4100', '4900')
+        cast(sum(amount_cents) as bigint) as gl_cents
+    from {{ ref('stg_gl') }}
+    where gl_code in ('4000', '4100', '4900', '5100', '5200', '5300')
     group by 1, 2
 )
 select

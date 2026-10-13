@@ -1,0 +1,9 @@
+{
+ "rules": [
+  "by_tokens",
+  "by_revenue",
+  "equal_usage"
+ ],
+ "recommended": "by_tokens",
+ "floor_pct": "30"
+}
