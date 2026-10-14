@@ -55,7 +55,7 @@ uv run margin memo --month 2026-03 --check
 uv run margin agreement --month 2026-03 --check
 ```
 
-`close` reads only the books; `--check` also compares the result with the generator's hidden answer key. A non-zero exit says why: 3 a control failed, 4 a precondition is missing (for example no sign-off for the allocation rule in force), 5 the result differs from the answer key, 6 provenance is incomplete. Every command accepts `--json`.
+`close` reads only the books; `--check` also compares the result with the generator's hidden answer key. A non-zero exit says why: 2 usage (a bad argument, a month outside the books, an unknown ID), 3 a control failed, 4 a precondition is missing (for example no sign-off for the allocation rule in force), 5 the result differs from the answer key, 6 provenance is incomplete, 70 internal (another run holds the warehouse lock, or a bug). Every command accepts `--json`.
 
 | Command | Purpose |
 |---|---|
