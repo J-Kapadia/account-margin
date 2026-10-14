@@ -18,10 +18,12 @@ from margin import signoff
 from margin.errors import MarginError
 
 
-def _message(rule: str, signed_rule: str, policy: str, signed_policy: str) -> str:
+def _message(rule: str, signed_rule: str, policy: str, signed_policy: str, searched, unsigned: str) -> str:
     return (
         f"allocation rule not signed: rule expected {rule} signed {signed_rule}; "
-        f"policy expected {policy} signed {signed_policy}. No allocation-dependent step ran."
+        f"policy expected {policy} signed {signed_policy}. "
+        f"Searched {searched} ({unsigned}); set MARGIN_SIGNOFF_DIR to look elsewhere. "
+        "No allocation-dependent step ran."
     )
 
 
@@ -55,7 +57,7 @@ def test_no_sign_off_file_exits_4_with_the_sign_off_message_and_writes_nothing(t
     rule, policy = signoff.config_hashes(MINI_CONFIG)
     assert result.code == 4
     env = result.json
-    assert env["message"] == _message(rule, "none", policy, "none")
+    assert env["message"] == _message(rule, "none", policy, "none", empty, "no sign-off found")
     assert env["controls"] == [{"id": "CTL-SIGNOFF", "status": "fail", "violating_rows": 1}]
     assert [(c["id"], c["violating_rows"]) for c in env["failed_controls"]] == [("CTL-SIGNOFF", 1)]
     assert not warehouse.exists()
@@ -74,7 +76,9 @@ def test_a_config_edited_after_signing_names_what_was_signed(tmp_path):
     new_policy = signoff.config_hashes(config)[1]
     result = close_mini(tmp_path / "w.duckdb", "2026-03", env={"MARGIN_SIGNOFF_DIR": str(signed_dir)}, config=config)
     assert result.code == 4
-    assert result.json["message"] == _message(rule, rule, new_policy, old_policy)
+    assert result.json["message"] == _message(
+        rule, rule, new_policy, old_policy, signed_dir, "policy config changed since it was signed"
+    )
     assert not (tmp_path / "w.duckdb").exists()
 
 
@@ -88,7 +92,9 @@ def test_with_two_historical_sign_offs_the_message_prints_the_newer_one(tmp_path
     now = signoff.config_hashes(config)
     result = close_mini(tmp_path / "w.duckdb", "2026-03", env={"MARGIN_SIGNOFF_DIR": str(signed_dir)}, config=config)
     assert result.code == 4
-    assert result.json["message"] == _message(now[0], newer[0], now[1], newer[1])
+    assert result.json["message"] == _message(
+        now[0], newer[0], now[1], newer[1], signed_dir, "policy config changed since it was signed"
+    )
 
 
 def test_the_newest_sign_off_is_chosen_by_date_then_by_file_name(tmp_path):
@@ -126,3 +132,10 @@ def test_a_failed_gate_leaves_a_closed_warehouse_byte_identical(mini_closed_copy
     assert result.code == 4
     assert result.json["failed_controls"][0]["id"] == "CTL-SIGNOFF"
     assert _sha(mini_closed_copy) == before
+
+
+def test_without_the_env_var_the_message_names_the_default_directory_and_the_variable(tmp_path):
+    result = close_mini(tmp_path / "w.duckdb", "2026-03", env={"MARGIN_SIGNOFF_DIR": ""})
+    assert result.code == 4
+    message = result.json["message"]
+    assert str(MINI_CONFIG / "signoff") in message and "MARGIN_SIGNOFF_DIR" in message

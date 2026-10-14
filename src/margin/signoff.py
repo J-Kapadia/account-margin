@@ -128,9 +128,22 @@ def verify(config_dir: Path, *, month: str | None = None) -> Signoff:
     latest = most_recent(directory)
     signed_rule = latest["rule_sha256"] if latest else "none"
     signed_policy = latest["policy_sha256"] if latest else "none"
+    changed = [
+        name for name, expected, signed in (
+            ("allocation", rule, signed_rule), ("policy", policy, signed_policy),
+        ) if expected != signed
+    ]
+    if latest is None:
+        unsigned = "no sign-off found"
+    elif changed:
+        unsigned = " and ".join(f"{name} config" for name in changed) + " changed since it was signed"
+    else:
+        unsigned = "no sign-off binds both current configs"
     message = (
         f"allocation rule not signed: rule expected {rule} signed {signed_rule}; "
-        f"policy expected {policy} signed {signed_policy}. No allocation-dependent step ran."
+        f"policy expected {policy} signed {signed_policy}. "
+        f"Searched {directory} ({unsigned}); set {SIGNOFF_DIR_ENV} to look elsewhere. "
+        "No allocation-dependent step ran."
     )
     raise MarginError(
         EXIT_PRECONDITION, message, month=month,
