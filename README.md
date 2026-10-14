@@ -4,7 +4,7 @@ Contribution profit by customer account, rolled forward monthly, with controls.
 
 One command a month turns a usage-priced AI company's books into contribution profit by customer account, tied to the P&L to the cent, with a memo that makes the judgement calls. Open the published memo for any closed month, click any number, and land on a chain that ends at hashed source rows.
 
-Everything is synthetic. The books belong to "Acme AI", a generated usage-priced AI API business (about 300 accounts, 12 months), written by a seeded generator. The only real numbers are cited, published list prices.
+Everything is synthetic. The books belong to "Acme AI", a generated usage-priced AI API business (about 300 accounts, 12 months), written by a seeded generator. The only real numbers will be cited, published list prices; the file that holds them (`data/reference/model_prices.csv`) is not in the tree yet.
 
 ## Status
 
@@ -27,17 +27,22 @@ The close runs every earlier month first, passes every control and matches the a
 - Computes contribution profit per account per month: revenue, less inference, cloud and support cost to serve the account.
 - Ties account revenue and each cost component to the general ledger to the cent, and fails the close when any difference remains.
 - Allocates shared cloud cost under three rules, and flags accounts below a margin floor as *firm* (below under every rule) or *soft* (below under some), each with a reason code.
-- Rolls a month forward: locks the prior month's inputs and results, loads the next month, and closes it.
 - Catches injected errors (duplicate invoice, cutoff slip, double-counted shared cost, sign flip, one-cent rounding slip) by naming the control that fails.
 - Attaches a provenance record to every number, so `margin explain <number-id>` prints the chain down to the source rows.
-- Runs a token-price scenario that applies a published list-price trend to the synthetic accounts.
-- Publishes a static memo with agent-readable data (`llms.txt`, the model's SQL and a cached values file per month), and checks that the CLI, SQL, memo and cached values return the same answer for every number.
+
+Planned, not built yet:
+
+- Roll-forward: lock the prior month's inputs and results, load the next month, and close it.
+- A token-price scenario that applies a published list-price trend to the synthetic accounts.
+- A static memo with agent-readable data (`llms.txt`, the model's SQL and a cached values file per month), and an `agreement` check that the CLI, SQL, memo and cached values return the same answer for every number.
 
 ## Requirements
 
 Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
-## Full run (when v0.1 is complete)
+## Full run (planned for v0.1; does not run yet)
+
+This is the target sequence, not what works today. It needs `data/reference/model_prices.csv` (the published list prices), the production sign-offs and the unbuilt commands in the table below. Today `margin gen --seed 20261013 --out data/books` exits 4 because the price file is absent. Use the `mini` fixture commands under Status.
 
 ```bash
 uv sync --frozen
@@ -56,14 +61,14 @@ uv run margin agreement --month 2026-03 --check
 |---|---|
 | `margin gen` | Generate the books and the answer key from a seed, or verify them (`--verify`) |
 | `margin close` | Compute, control and check a month, closing earlier months first |
-| `margin rollforward` | Lock the prior month and load the next |
+| `margin rollforward` | (planned) Lock the prior month and load the next |
 | `margin explain` | Print the provenance chain of a number |
 | `margin inject` | Copy the books with one seeded error |
-| `margin scenario` | Token-price scenario |
-| `margin memo` | Build the memo and explain pages as a static site |
-| `margin agreement` | Ask every interface for every number and report any disagreement |
+| `margin scenario` | (planned) Token-price scenario |
+| `margin memo` | (planned) Build the memo and explain pages as a static site |
+| `margin agreement` | (planned) Ask every interface for every number and report any disagreement |
 | `margin signoff` | Record the allocation rule's sign-off (human, interactive) |
-| `margin doctor`, `margin status` | Health and state |
+| `margin doctor`, `margin status` | (planned) Health and state |
 
 ## Tests
 
@@ -77,8 +82,8 @@ uv run pytest -q tests/test_injected_errors.py
 - `src/margin/`: the `margin` package and the memo templates
 - `dbt/`: the dbt project (staging, intermediate and mart models)
 - `controls/`: one SQL file per control
-- `config/`: allocation and policy config, and the sign-offs bound to them
-- `data/reference/`: reference data the app reads (list prices, support rates and the like, each sourced and dated)
+- `config/`: allocation and policy config (production sign-offs are not committed yet; the `mini` fixture carries its own under `tests/fixtures/signoff`)
+- `data/reference/`: reference data the app reads: support rates and an empty quote registry today; the sourced, dated list-price file is still to come
 - `tests/`: unit, property, integration and acceptance tests, and the committed `mini` fixture
 
 ## Licence
