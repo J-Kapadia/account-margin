@@ -3,8 +3,10 @@ version: 2
 models:
   - name: stg_invoices
     columns:
+      # line_id uniqueness is not a dbt test: a re-imported line is CTL-REV-DUP's to name (exit 3),
+      # and a failed dbt test would surface as an internal error (exit 70) before the control runs.
       - name: line_id
-        tests: [unique, not_null]
+        tests: [not_null]
       - name: line_type
         tests:
           - accepted_values:

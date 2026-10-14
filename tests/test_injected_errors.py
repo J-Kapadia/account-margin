@@ -159,3 +159,21 @@ def test_inject_refuses_a_used_output_directory_and_an_unknown_error(tmp_path):
     assert again.code == 2 and json.loads(again.stdout)["status"] == "fail"
     assert margin("inject", "--fixture", "mini", "--error", "nonsense", "--out", str(tmp_path / "x")).code == 2
     assert re.search(r"not empty", again.json["message"])
+
+
+def test_an_exact_reimported_invoice_line_fails_the_close_naming_ctl_rev_dup(tmp_path):
+    """The line as booked, line_id and all (what `inject` does not do): the dbt unique test used to
+    fire first and the close exited 70; the control owns it and the close exits 3."""
+    books = clean_books(tmp_path)
+    lines = (books / "invoices.csv").read_text().splitlines(keepends=True)
+    row = next(line for line in lines[1:] if f",{MONTH}," in line)
+    with open(books / "invoices.csv", "a") as f:
+        f.write(row if row.endswith("\n") else row + "\n")
+
+    result = close(books, tmp_path / "w.duckdb")
+
+    assert result.code == 3, result.stderr
+    failed = {f["id"]: f for f in result.json["failed_controls"]}
+    assert "CTL-REV-DUP" in failed, sorted(failed)
+    assert "invoice_id and line_id" in "\n".join(failed["CTL-REV-DUP"]["detail"])
+    assert UNRELATED.isdisjoint(failed)
