@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 
-from conftest import margin
+from conftest import MINI_CONFIG, MINI_PRICES, margin
 
 HOLDER = (
     "import fcntl, os, sys; fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT); "
@@ -75,3 +75,14 @@ def test_explain_and_memo_on_a_missing_warehouse_exit_4_and_write_nothing(tmp_pa
         assert result.code == 4, result.stderr
         assert str(fresh) in result.json["message"]
         assert list(tmp_path.iterdir()) == []
+
+
+def test_gen_verify_runs_from_a_fresh_checkout_with_no_warehouse_directory(tmp_path):
+    """A fresh clone has no warehouse/ yet; the verify takes the lock there all the same."""
+    missing = tmp_path / "warehouse" / "mini.duckdb"
+    result = margin(
+        "gen", "--verify", "--fixture", "mini", "--config", str(MINI_CONFIG), "--prices", str(MINI_PRICES),
+        "--warehouse", str(missing),
+    )
+    assert result.code == 0, result.stderr
+    assert missing.parent.is_dir()
