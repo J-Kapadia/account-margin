@@ -7,7 +7,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from conftest import Workspace, margin
+from conftest import MINI_CONFIG, Workspace, margin
 from margin import explain as explain_mod
 from margin import memo as memo_mod
 from margin.books import write_manifest
@@ -48,7 +48,10 @@ def test_close_is_idempotent(closed):
     first = closed.close().json
     second = closed.close().json
     assert first["result_hash"] == second["result_hash"]
-    assert first["controls"] == [{"id": "CTL-TIE-REV", "status": "pass", "violating_rows": 0}]
+    assert first["controls"] == [
+        {"id": "CTL-SIGNOFF", "status": "pass", "violating_rows": 0},
+        {"id": "CTL-TIE-REV", "status": "pass", "violating_rows": 0},
+    ]
 
 
 def test_close_does_not_need_truth(closed, tmp_path):
@@ -68,7 +71,7 @@ def test_a_warehouse_is_tied_to_its_books(closed, tmp_path):
     other = Workspace(tmp_path)
     assert other.gen("--seed", "7").code == 0
     result = margin("close", "--month", "2026-03", "--json", "--books", str(other.books),
-                    "--warehouse", str(closed.warehouse))
+                    "--warehouse", str(closed.warehouse), "--config", str(MINI_CONFIG))
     assert result.code == 2
     assert result.json["message"] == "warehouse holds different books: use --warehouse or delete it"
 

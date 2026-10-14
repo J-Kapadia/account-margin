@@ -31,8 +31,14 @@ def run_controls(con: duckdb.DuckDBPyConnection, month: str, run_id: str) -> lis
         results.append(
             {"id": control_id, "status": status, "violating_rows": len(rows), "detail": detail}
         )
-        con.execute(
-            "INSERT INTO ctl.control_results VALUES (?, ?, ?, ?, ?, ?)",
-            [run_id, month_date(month), control_id, status, len(rows), json.dumps(detail)],
-        )
+        record(con, month, run_id, results[-1])
     return results
+
+
+def record(con: duckdb.DuckDBPyConnection, month: str, run_id: str, result: dict) -> None:
+    """Store one control result in `ctl.control_results`."""
+    con.execute(
+        "INSERT INTO ctl.control_results VALUES (?, ?, ?, ?, ?, ?)",
+        [run_id, month_date(month), result["id"], result["status"], result["violating_rows"],
+         json.dumps(result["detail"])],
+    )

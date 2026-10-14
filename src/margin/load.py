@@ -11,6 +11,7 @@ from pathlib import Path
 import duckdb
 
 from .books import months_between, read_books_id
+from .gen_config import ALLOCATION_FILE, POLICY_FILE, sha256_file
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, EXIT_USAGE, MarginError
 from .paths import ROOT
 from .warehouse import month_date
@@ -187,3 +188,27 @@ def load_reference(con: duckdb.DuckDBPyConnection, prices: Path) -> None:
             con.execute(f"INSERT INTO raw.{table} {select}")
         else:
             con.execute(f"CREATE TABLE raw.{table} AS {select}")
+
+
+CONFIG_FILES = {"allocation": ALLOCATION_FILE, "policy": POLICY_FILE}
+
+
+def load_config(con: duckdb.DuckDBPyConnection, config_dir: Path) -> None:
+    """Load the two signed configs into `raw.ref_config`, one row per file with a `_row_hash`.
+
+    The table is replaced by the files as they are now; the gate has already checked that they
+    are the ones signed. Rows are named by the config's short name (`allocation`, `policy`).
+    """
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS raw.ref_config (name VARCHAR, file VARCHAR, sha256 VARCHAR, "
+        "content VARCHAR, _row_hash VARCHAR, _month DATE, _load_id VARCHAR)"
+    )
+    con.execute("DELETE FROM raw.ref_config")
+    for ordinal, (name, file) in enumerate(CONFIG_FILES.items(), start=1):
+        path = config_dir / file
+        sha, text = sha256_file(path), path.read_text(encoding="utf-8")
+        con.execute(
+            "INSERT INTO raw.ref_config VALUES (?, ?, ?, ?, "
+            "md5(? || chr(31) || ? || chr(31) || ? || chr(31) || ? || chr(31) || ?), NULL, '')",
+            [name, file, sha, text, file, str(ordinal), name, sha, text],
+        )

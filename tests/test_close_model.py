@@ -297,7 +297,10 @@ def test_close_runs_the_new_layers_on_mini_with_the_fixture_config(tmp_path):
     result = margin("close", "--month", "2026-03", "--fixture", "mini", "--config", str(MINI_CONFIG),
                     "--warehouse", str(tmp_path / "w.duckdb"), "--json")
     assert result.code == 0, result.stderr
-    assert result.json["controls"] == [{"id": "CTL-TIE-REV", "status": "pass", "violating_rows": 0}]
+    assert result.json["controls"] == [
+        {"id": "CTL-SIGNOFF", "status": "pass", "violating_rows": 0},
+        {"id": "CTL-TIE-REV", "status": "pass", "violating_rows": 0},
+    ]
     with duckdb.connect(str(tmp_path / "w.duckdb"), read_only=True) as c:
         assert c.execute("SELECT count(*) FROM mart.fct_flags").fetchone()[0] == 24  # 2026-02 and 2026-03
         assert c.execute("SELECT status FROM state.close_state ORDER BY month").fetchall() == [("closed",)] * 2

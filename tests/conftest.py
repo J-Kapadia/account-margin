@@ -18,6 +18,8 @@ settings.register_profile("margin", database=None)
 settings.load_profile("margin")
 
 ROOT = Path(__file__).resolve().parents[1]
+FIXTURE_SIGNOFF = ROOT / "tests" / "fixtures" / "signoff"
+FIXTURE_CONFIG = ROOT / "tests" / "fixtures" / "config"
 
 
 @dataclass
@@ -33,6 +35,8 @@ class Result:
 
 def margin(*args: str, cwd: Path = ROOT, env: dict | None = None) -> Result:
     full_env = {k: v for k, v in os.environ.items() if not k.startswith("MARGIN_")}
+    # `close` is gated on a sign-off: unless a test says otherwise, the fixture config is the one signed.
+    full_env["MARGIN_SIGNOFF_DIR"] = str(FIXTURE_SIGNOFF)
     full_env.update(env or {})
     proc = subprocess.run(
         [sys.executable, "-m", "margin", *args],
@@ -54,7 +58,7 @@ class Workspace:
         return self.root / "w.duckdb"
 
     def flags(self) -> list[str]:
-        return ["--books", str(self.books), "--warehouse", str(self.warehouse)]
+        return ["--books", str(self.books), "--warehouse", str(self.warehouse), "--config", str(FIXTURE_CONFIG)]
 
     def gen(self, *extra: str) -> Result:
         return margin("gen", "--fixture", "small", "--out", str(self.books), "--json", *extra)
@@ -123,3 +127,30 @@ def mini_books_copy(tmp_path) -> Path:
     books = tmp_path / "books"
     shutil.copytree(MINI_BOOKS, books)
     return books
+
+
+# ------------------------------------------------------------------ closing `mini` through the CLI
+
+
+def close_mini(warehouse: Path, month: str = "2026-04", *extra: str, env: dict | None = None,
+               config: Path = MINI_CONFIG) -> Result:
+    """`margin close` on the committed `mini` books, signed config and sign-off directory by default."""
+    return margin("close", "--fixture", "mini", "--month", month, "--json", "--config", str(config),
+                  "--warehouse", str(warehouse), *extra, env=env)
+
+
+@pytest.fixture(scope="session")
+def mini_closed(tmp_path_factory) -> Path:
+    """A warehouse with every month of `mini` closed by the CLI; read-only for the tests."""
+    warehouse = tmp_path_factory.mktemp("mini_closed") / "w.duckdb"
+    result = close_mini(warehouse)
+    assert result.code == 0, result.stderr
+    return warehouse
+
+
+@pytest.fixture
+def mini_closed_copy(mini_closed, tmp_path) -> Path:
+    """A private copy of the closed `mini` warehouse for tests that change it."""
+    copy = tmp_path / "w.duckdb"
+    shutil.copy(mini_closed, copy)
+    return copy

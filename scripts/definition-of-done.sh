@@ -45,15 +45,26 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 uv sync --frozen
 
-# Phase 0 exit commands. The books are generated and gitignored, so they are absent on a clean
-# extraction; --fixture small selects data/books/small and warehouse/small.duckdb.
+# Fixture closes run on the fixture config and its committed sign-off; the real config/ is unsigned.
+# The books are generated and gitignored, so they are absent on a clean extraction;
+# --fixture small selects data/books/small and warehouse/small.duckdb.
+export MARGIN_SIGNOFF_DIR=tests/fixtures/signoff
+fixture_config=tests/fixtures/config
 uv run margin gen --fixture small
-uv run margin close --month 2026-03 --fixture small --json
+uv run margin close --month 2026-03 --fixture small --config "$fixture_config" --json
 uv run margin explain cp/2026-03/acct_0001/revenue --fixture small
 out=$(mktemp -d)
-trap 'rm -rf "$out"' EXIT
+work=$(mktemp -d)
+trap 'rm -rf "$out" "$work"' EXIT
 uv run margin memo --month 2026-03 --fixture small --out "$out"
 grep -rq data-num-id "$out"
+
+# The committed `mini` books close on the signed fixture config; without a sign-off the gate exits 4.
+uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --json
+rc=0
+MARGIN_SIGNOFF_DIR="$work" uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" \
+  --warehouse "$work/unsigned.duckdb" || rc=$?
+if [ "$rc" -ne 4 ]; then echo "definition-of-done: close without a sign-off exited $rc, not 4" >&2; exit 1; fi
 
 if [ "$fast" -eq 1 ]; then
   uv run pytest -q -m "not slow"

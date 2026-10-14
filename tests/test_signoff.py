@@ -103,3 +103,16 @@ def test_the_command_writes_the_file_at_a_terminal(tmp_path):
 
 def test_help_works():
     assert margin("signoff", "--help").code == 0
+
+
+def test_signing_the_fixture_config_reproduces_the_committed_signoff_and_the_real_config_is_independent(tmp_path):
+    committed = ROOT / "tests" / "fixtures" / "signoff"
+    cfg = tmp_path / "config"
+    shutil.copytree(MINI_CONFIG, cfg)
+    written = signoff.write_for(cfg, signer="s", role="r", signoff_to=tmp_path / "so", signed_on="2026-10-14")
+    assert (committed / written.name).is_file()  # the committed sign-off is named by the fixture config's hash
+    assert json.loads(written.read_text())["rule_sha256"] == json.loads((committed / written.name).read_text())["rule_sha256"]
+    real = tmp_path / "real"
+    shutil.copytree(ROOT / "config", real)
+    (real / "policy.yaml").write_text((real / "policy.yaml").read_text() + "\n# edited\n")
+    assert signoff.write_for(MINI_CONFIG, signer="s", role="r", signoff_to=tmp_path / "again").name == written.name

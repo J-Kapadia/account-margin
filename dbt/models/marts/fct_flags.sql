@@ -10,18 +10,9 @@ with per_rule as (
     from {{ ref('fct_contribution_by_rule') }}
     group by month, account_id
 ),
--- The classifier cohort fixes the medians only: a usage row and positive revenue.
-cohort_values as (
-    select
-        month, code, value,
-        row_number() over (partition by month, code order by value) as place,
-        count(*) over (partition by month, code) as cohort_size
-    from {{ ref('int_flag_drivers') }}
-    where has_usage and revenue_cents > 0
-),
+-- The cohort medians are int_cohort_medians; an empty cohort has none, so the floor applies alone.
 medians as (
-    -- the lower median: rank ceil(n / 2), always a value that occurs in the data
-    select month, code, value as median from cohort_values where place = (cohort_size + 1) // 2
+    select month, code, median from {{ ref('int_cohort_medians') }}
 ),
 multiples as (
     select

@@ -1,8 +1,10 @@
-"""`close` (plan §6.2, §6.5): load, build, control, record provenance, mark the month closed.
+"""`close`: gate, load, build, control, record provenance, mark the month closed.
 
-The sign-off gate is not wired in yet, so no sign-off is checked. Earlier months of the books'
-window are closed first, in order (catch-up); a month that fails a control stays
-without a `close_state` row. The state is derived: dbt rebuilds every mart on each close.
+The sign-off gate is the first step and runs before anything is read or written. Every earlier
+month of the books' window that is not yet closed is closed first, in order (catch-up); a month
+that fails a control stays without a `closed` row. The state is derived: dbt rebuilds every mart on
+each close, and a month already closed is recomputed and left as it is when its result hash
+is unchanged.
 """
 
 from __future__ import annotations
@@ -11,9 +13,10 @@ import uuid
 
 import duckdb
 
-from . import controls, dbt_runner, load, prov
+from . import controls, dbt_runner, load, prov, signoff
 from .books import check_in_window, months_between
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, MarginError
+from .gen_config import load_config
 from .paths import Paths
 from .warehouse import connect, init_schemas, month_date
 
@@ -40,9 +43,12 @@ def _fail_controls(month: str, results: list[dict], *, prefix: str = "") -> Marg
 def close_month(paths: Paths, month: str) -> dict:
     """Close `month` (and any earlier month of the window); return the envelope fields."""
     first, _ = check_in_window(paths.books, month)
-    if not load.books_have_rows(paths.books, month):
-        raise MarginError(EXIT_PRECONDITION, f"no books for month {month}", month=month)
+    sign = signoff.verify(paths.config, month=month)  # exit 4 before anything is read or written
     months = months_between(first, month)
+    for m in months:  # every month the close will touch has books, checked before any write
+        if not load.books_have_rows(paths.books, m):
+            raise MarginError(EXIT_PRECONDITION, f"no books for month {m}", month=m)
+    config = load_config(paths.config)
     run_id = uuid.uuid4().hex
 
     con = connect(paths.warehouse)
@@ -51,6 +57,7 @@ def close_month(paths: Paths, month: str) -> dict:
         load.check_books_identity(con, paths.books)
         load.load_months(con, paths.books, first, month, run_id)
         load.load_reference(con, paths.prices)
+        load.load_config(con, paths.config)
     finally:
         con.close()  # dbt needs the file: margin holds no connection while it runs
 
@@ -58,47 +65,70 @@ def close_month(paths: Paths, month: str) -> dict:
 
     con = connect(paths.warehouse)
     try:
+        known: dict[str, dict] = {}
         for m in months:
-            result = _close_one(con, m, run_id, catch_up=m != month)
+            result = _close_one(con, m, run_id, sign, config, known, catch_up=m != month)
+        # The month-less records describe the files this run loaded; they sit outside result_hash.
+        _write(con, prov.reference_records(con, run_id=run_id, signoff=sign))
         return result
     finally:
         con.close()
 
 
-def _close_one(con: duckdb.DuckDBPyConnection, month: str, run_id: str, *, catch_up: bool) -> dict:
-    results = controls.run_controls(con, month, run_id)
+def _write(con: duckdb.DuckDBPyConnection, records: list[dict]) -> None:
+    con.execute("BEGIN")
+    try:
+        prov.write_records(con, records)
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+
+
+def _close_one(
+    con: duckdb.DuckDBPyConnection, month: str, run_id: str, sign: signoff.Signoff, config,
+    known: dict[str, dict], *, catch_up: bool,
+) -> dict:
+    gate = {"id": signoff.GATE_ID, "status": "pass", "violating_rows": 0, "detail": []}
+    controls.record(con, month, run_id, gate)
+    results = [gate] + controls.run_controls(con, month, run_id)
     if any(c["status"] == "fail" for c in results):
         raise _fail_controls(month, results, prefix="catch-up close stopped: " if catch_up else "")
 
     records = prov.build_records(
-        con, month, checks=[c["id"] for c in results], run_id=run_id
+        con, month, checks=[c["id"] for c in results], run_id=run_id, signoff=sign, config=config,
+        known=known,
     )
+    known.update({r["number_id"]: r for r in records})
     new_hash = prov.result_hash(records)
     stored = con.execute(
-        "SELECT result_hash FROM state.close_state WHERE month = ?", [month_date(month)]
+        "SELECT status, result_hash FROM state.close_state WHERE month = ?", [month_date(month)]
     ).fetchone()
-    if stored is not None and stored[0] != new_hash:
-        # EC-05: a closed month whose recomputed result differs is a failure, not a rewrite.
-        lock = {
-            "id": "CTL-LOCK", "violating_rows": 1,
-            "detail": [f"{month}: stored result_hash {stored[0]}, recomputed {new_hash}"],
-        }
-        raise MarginError(
-            EXIT_CONTROL, f"closed month {month} changed: result hash differs",
-            month=month, controls=_public(results) + [{"id": "CTL-LOCK", "status": "fail",
-                                                      "violating_rows": 1}],
-            failed_controls=[lock],
-        )
-    if stored is None:
-        con.execute("BEGIN")
-        try:
-            prov.write_records(con, records)
-            con.execute(
-                "INSERT INTO state.close_state VALUES (?, 'closed', ?, ?, ?, NULL)",
-                [month_date(month), prov.month_input_digest(records), new_hash, run_id],
+    if stored is not None and stored[0] in ("closed", "locked"):
+        if stored[1] != new_hash:
+            # A closed month whose recomputed result differs is a failure, not a rewrite.
+            lock = {
+                "id": "CTL-LOCK", "violating_rows": 1,
+                "detail": [f"{month}: stored result_hash {stored[1]}, recomputed {new_hash}"],
+            }
+            raise MarginError(
+                EXIT_CONTROL, f"closed month {month} changed: result hash differs",
+                month=month, controls=_public(results) + [{"id": "CTL-LOCK", "status": "fail",
+                                                          "violating_rows": 1}],
+                failed_controls=[lock],
             )
-            con.execute("COMMIT")
-        except Exception:
-            con.execute("ROLLBACK")
-            raise
+        return {"month": month, "controls": _public(results), "result_hash": new_hash}
+    # No row, or an `open` one: the month goes open -> closed with its records, in one transaction.
+    con.execute("BEGIN")
+    try:
+        con.execute("DELETE FROM prov.records WHERE month = ?", [month_date(month)])
+        prov.write_records(con, records)
+        con.execute(
+            "INSERT OR REPLACE INTO state.close_state VALUES (?, 'closed', ?, ?, ?, NULL)",
+            [month_date(month), prov.month_input_digest(records), new_hash, run_id],
+        )
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
     return {"month": month, "controls": _public(results), "result_hash": new_hash}
