@@ -223,6 +223,11 @@ def build_layout(
             plan = "usage"
         if idx in planted_firm:
             k = planted_firm[idx]
+            # A platform fee is a fixed share of list revenue that inference cost cannot move,
+            # so on a committed or enterprise plan the margin of a model-mix plant can sit
+            # above its band. Usage accounts have the smallest fee, so every band is reachable.
+            if REASONS[k % 4] == "MODEL_MIX":
+                plan = "usage"
             discount = Decimal(35 + int(draws[2] * 16)) / 100 if k % 4 == 0 else Decimal(0)
         number = idx + 1
         if number in forced:
