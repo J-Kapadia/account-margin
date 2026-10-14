@@ -29,8 +29,8 @@ def test_close_envelope(closed):
     env = validate(margin("close", "--month", "2026-03", "--json", *closed.flags()).json)
     assert env["controls"] == [
         {"id": c, "status": "pass", "violating_rows": 0}
-        for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-PRICE-PIN", "CTL-TIE-CLD", "CTL-TIE-INF",
-                  "CTL-TIE-REV", "CTL-TIE-SUP")
+        for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-CUTOFF", "CTL-PRICE-PIN", "CTL-REV-DUP", "CTL-SIGN",
+                  "CTL-TIE-CLD", "CTL-TIE-INF", "CTL-TIE-REV", "CTL-TIE-SUP")
     ]
     assert len(env["result_hash"]) == 64
 

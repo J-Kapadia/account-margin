@@ -15,6 +15,7 @@ import click
 from . import check as check_mod
 from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, load, memo as memo_mod
+from . import inject as inject_mod
 from . import signoff as signoff_mod
 from .errors import (
     EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
@@ -181,6 +182,19 @@ def memo(paths: Paths, month: str, out: Path):
     return {"month": month, "out": str(out), "files": [str(f) for f in files]}, [
         f"wrote {f}" for f in files
     ]
+
+
+@main.command()
+@click.option("--error", "error", required=True, type=click.Choice(inject_mod.ERRORS),
+              help="The error to inject into 2026-03.")
+@click.option("--out", required=True, type=click.Path(path_type=Path), help="New books directory to write.")
+@click.option("--seed", type=int, default=gen_mod.DEFAULT_SEED, show_default=True,
+              help="Seed of the row choice, recorded in the copy's manifest header.")
+@common_options
+def inject(paths: Paths, error: str, out: Path, seed: int):
+    """Copy the books with one seeded error, to test that a control names it."""
+    result = inject_mod.inject(paths.books, out, error, seed)
+    return result, [f"wrote {out}: {error} in {result['target']['file']} ({result['target']['key']})"]
 
 
 @main.command()

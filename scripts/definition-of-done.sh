@@ -71,6 +71,18 @@ MARGIN_SIGNOFF_DIR="$work" uv run margin close --month 2026-03 --fixture mini --
   --warehouse "$work/unsigned.duckdb" || rc=$?
 if [ "$rc" -ne 4 ]; then echo "definition-of-done: close without a sign-off exited $rc, not 4" >&2; exit 1; fi
 
+# An injected error is caught by the control built for it: exit 3 naming CTL-SIGN. The full set
+# of five runs in tests/test_injected_errors.py.
+uv run margin inject --fixture mini --error sign_flip --out "$work/injected/books"
+rc=0
+uv run margin close --month 2026-03 --fixture mini \
+  --books "$work/injected/books" --config "$fixture_config" --warehouse "$work/injected.duckdb" --json \
+  > "$work/injected.json" || rc=$?
+if [ "$rc" -ne 3 ] || ! grep -q '"id": "CTL-SIGN"' "$work/injected.json"; then
+  echo "definition-of-done: the injected sign flip did not fail CTL-SIGN with exit 3 (exit $rc)" >&2
+  exit 1
+fi
+
 if [ "$fast" -eq 1 ]; then
   uv run pytest -q -m "not slow"
 else

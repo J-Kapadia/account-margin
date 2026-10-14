@@ -1,0 +1,161 @@
+"""Injected errors are caught: each error `margin inject` makes in a copy of the `mini` books
+fails `close --month 2026-03` with exit 3, the control built for it is in `failed_controls`, and
+its detail names a number the error touches and the `_row_hash` of the row it changed. Every copy
+closes in its own temporary warehouse; the clean books pass.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import duckdb
+import pytest
+
+from conftest import MINI_BOOKS, MINI_CONFIG, MINI_PRICES, margin
+from margin.inject import ERRORS
+
+MONTH = "2026-03"
+# error -> the control that must name it (the rounding slip is the one named by a tie-out)
+NAMED = {
+    "duplicate_invoice": "CTL-REV-DUP",
+    "cutoff_slip": "CTL-CUTOFF",
+    "alloc_twice": "CTL-ALLOC-CONSERVE",
+    "sign_flip": "CTL-SIGN",
+    "rounding_slip": "CTL-TIE-INF",
+}
+# controls with nothing to do with any injected error
+UNRELATED = {"CTL-PRICE-PIN", "CTL-SIGNOFF", "CTL-LOCK", "CTL-PROV"}
+# error -> (raw table, key column) of the row it changes
+ROW = {
+    "duplicate_invoice": ("invoices", "line_id"),
+    "cutoff_slip": ("invoices", "line_id"),
+    "alloc_twice": ("cloud_focus", "line_id"),
+    "sign_flip": ("invoices", "line_id"),
+    "rounding_slip": ("gl", "entry_id"),
+}
+
+
+def inject(error: str, out: Path, *extra: str):
+    return margin("inject", "--fixture", "mini", "--error", error, "--out", str(out), "--json", *extra)
+
+
+def close(books: Path, warehouse: Path, month: str = MONTH):
+    # Closes run side by side, so each gets its own dbt target and log directory.
+    return margin(
+        "close", "--fixture", "mini", "--books", str(books), "--warehouse", str(warehouse),
+        "--config", str(MINI_CONFIG), "--month", month, "--json",
+        env={"MARGIN_PRICES": str(MINI_PRICES), "DBT_TARGET_PATH": str(warehouse.parent / "target"),
+             "DBT_LOG_PATH": str(warehouse.parent / "logs")},
+    )
+
+
+def clean_books(root: Path) -> Path:
+    books = root / "books"
+    shutil.copytree(MINI_BOOKS, books)
+    shutil.copy(MINI_BOOKS.parent / "books.manifest.sha256", root / "books.manifest.sha256")
+    return books
+
+
+@pytest.fixture(scope="module")
+def closes(tmp_path_factory) -> dict:
+    """Every copy (the five injected and the clean books) closed once, in its own warehouse."""
+    def run(name: str) -> dict:
+        root = tmp_path_factory.mktemp(name)
+        if name == "clean":
+            books, target = clean_books(root), None
+        else:
+            injected = inject(name, root / "books")
+            assert injected.code == 0, injected.stderr
+            books, target = root / "books", injected.json["target"]
+        warehouse = root / "w.duckdb"
+        return {"result": close(books, warehouse), "target": target, "warehouse": warehouse}
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        names = [*ERRORS, "clean"]
+        return dict(zip(names, pool.map(run, names)))
+
+
+def expected_number_id(error: str, target: dict) -> str:
+    if error == "rounding_slip":
+        return f"pnl/{MONTH}/5100"
+    if error == "alloc_twice":
+        return f"cp/{MONTH}/{target['account_id']}/cloud_direct"
+    return f"cp/{MONTH}/{target['account_id']}/revenue"
+
+
+def row_hash(warehouse: Path, error: str, key: str) -> str:
+    table, column = ROW[error]
+    con = duckdb.connect(str(warehouse), read_only=True)
+    try:
+        (found,) = con.execute(f"SELECT _row_hash FROM raw.{table} WHERE {column} = ?", [key]).fetchall()
+    finally:
+        con.close()
+    return found[0]
+
+
+@pytest.mark.parametrize("error", ERRORS)
+def test_the_injected_error_fails_the_close_naming_its_control(error, closes):
+    result, target, warehouse = closes[error].values()
+
+    assert result.code == 3, result.stderr
+    env = result.json
+    assert env["status"] == "fail" and env["month"] == MONTH
+    failed = {f["id"]: f for f in env["failed_controls"]}
+    assert NAMED[error] in failed, f"{error} not named by {NAMED[error]}: {sorted(failed)}"
+    detail = "\n".join(failed[NAMED[error]]["detail"])
+    assert expected_number_id(error, target) in detail
+    assert row_hash(warehouse, error, target["key"]) in detail
+    if error == "rounding_slip":
+        assert list(failed) == ["CTL-TIE-INF"]  # a one-cent slip is the tie-out's alone
+    assert UNRELATED.isdisjoint(failed)
+    # the month stays open: nothing can be explained from it
+    explained = margin("explain", f"cp/{MONTH}/{target.get('account_id', 'acct_0001')}/revenue",
+                       "--warehouse", str(warehouse), "--json")
+    assert explained.code == 4, explained.stderr
+
+
+def test_the_clean_books_pass(closes):
+    result = closes["clean"]["result"]
+    assert result.code == 0, result.stderr
+    assert all(c["status"] == "pass" for c in result.json["controls"])
+    ids = {c["id"] for c in result.json["controls"]}
+    assert {"CTL-REV-DUP", "CTL-CUTOFF", "CTL-SIGN"} <= ids
+
+
+def test_inject_is_seeded_and_records_the_seed_in_the_manifest(tmp_path):
+    first = inject("duplicate_invoice", tmp_path / "a" / "books")
+    again = inject("duplicate_invoice", tmp_path / "b" / "books")
+    assert first.json["target"] == again.json["target"]
+    assert (tmp_path / "a" / "books" / "invoices.csv").read_bytes() == (tmp_path / "b" / "books" / "invoices.csv").read_bytes()
+    manifest = (tmp_path / "a" / "books.manifest.sha256").read_text()
+    assert "# inject_seed: 20261013" in manifest and "# injected_error: duplicate_invoice" in manifest
+    assert "# seed: 20261013" in manifest  # the books' own header is kept
+    others = {inject("duplicate_invoice", tmp_path / f"s{s}" / "books", "--seed", str(s)).json["target"]["key"]
+              for s in range(1, 8)}
+    assert len(others) > 1  # the seed moves the choice
+
+
+@pytest.mark.parametrize("error", ERRORS)
+def test_inject_changes_only_the_one_row_in_one_file(error, tmp_path):
+    out = tmp_path / "books"
+    target = inject(error, out).json["target"]
+    changed = [p.name for p in sorted(MINI_BOOKS.iterdir()) if p.read_bytes() != (out / p.name).read_bytes()]
+    assert changed == [target["file"]]
+    before = (MINI_BOOKS / target["file"]).read_text().splitlines()
+    after = (out / target["file"]).read_text().splitlines()
+    added = len(after) - len(before)
+    assert added == (1 if error in ("duplicate_invoice", "alloc_twice") else 0)
+    assert sum(1 for line in after if line not in before) == 1
+
+
+def test_inject_refuses_a_used_output_directory_and_an_unknown_error(tmp_path):
+    out = tmp_path / "books"
+    assert inject("sign_flip", out).code == 0
+    again = inject("sign_flip", out)
+    assert again.code == 2 and json.loads(again.stdout)["status"] == "fail"
+    assert margin("inject", "--fixture", "mini", "--error", "nonsense", "--out", str(tmp_path / "x")).code == 2
+    assert re.search(r"not empty", again.json["message"])
