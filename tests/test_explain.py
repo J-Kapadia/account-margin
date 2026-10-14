@@ -126,9 +126,20 @@ def test_month_less_ids_are_answered_from_their_record(mini_closed):
         assert env["chain"]["rows"] and env["digest_verified"]
 
 
-@pytest.mark.parametrize("number_id", ["bvb/build_cost", "ref/model_prices/no-such-model", "cfg/missing"])
-def test_a_month_less_id_with_no_record_exits_4(mini_closed, number_id):
+MISSING_MONTH_LESS = ["bvb/build_cost", "ref/model_prices/no-such-model", "cfg/missing"]
+
+
+@pytest.mark.parametrize("number_id", MISSING_MONTH_LESS)
+def test_an_unknown_month_less_id_in_a_closed_warehouse_exits_2(mini_closed, number_id):
     code, env = run(mini_closed, number_id)
+    assert code == 2 and env["message"].startswith(f"unknown number ID {number_id}; nearest: ")
+
+
+@pytest.mark.parametrize("number_id", MISSING_MONTH_LESS)
+def test_a_month_less_id_in_a_warehouse_with_no_records_exits_4(mini_closed_copy, number_id):
+    with duckdb.connect(str(mini_closed_copy)) as con:
+        con.execute("DELETE FROM prov.records")
+    code, env = run(mini_closed_copy, number_id)
     assert code == 4 and env["message"] == f"no provenance record for {number_id}: run close"
 
 

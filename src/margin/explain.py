@@ -4,7 +4,8 @@ Digests are re-derived on the way: a leaf from the rows its `source_query` selec
 composite from its children's stored digests. A mismatch exits 6. Every family of the closed
 ID grammar is answered. A number with a month slot needs that month `closed` or `locked` (exit 4);
 a scenario number's month is its base month and it also needs its records (`scenario not run`).
-A month-less number (`ref/`, `cfg/`, `bvb/`) is answered from its record alone.
+A month-less number (`ref/`, `cfg/`, `bvb/`) is answered from its record alone; with no record it exits 4
+("run close") only while the warehouse holds no records at all, else it is an unknown ID (exit 2).
 """
 
 from __future__ import annotations
@@ -102,7 +103,7 @@ def explain(con: duckdb.DuckDBPyConnection, number_id: str, depth: int | None = 
     if _record(con, number_id) is None:
         if family == "scenario":
             raise MarginError(EXIT_PRECONDITION, f"scenario not run for month {month}", month=month)
-        if family in prov.MONTH_LESS_FAMILIES:
+        if family in prov.MONTH_LESS_FAMILIES and not con.execute("SELECT count(*) FROM prov.records").fetchone()[0]:
             raise MarginError(EXIT_PRECONDITION, f"no provenance record for {number_id}: run close")
         raise _unknown(con, number_id)
     return _Walk(con, depth).node(number_id, 0)
