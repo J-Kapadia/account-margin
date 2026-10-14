@@ -40,10 +40,14 @@ def human(env: dict, extra_lines: list[str] | None = None) -> str:
     return "\n".join(lines)
 
 
+def emit_json(env: dict) -> None:
+    sys.stdout.write(json.dumps(env, sort_keys=False) + "\n")
+
+
 def emit(env: dict, *, as_json: bool, extra_lines: list[str] | None = None) -> None:
     """Machine output on stdout and human text on stderr with --json; human text on stdout otherwise."""
     if as_json:
-        sys.stdout.write(json.dumps(env, sort_keys=False) + "\n")
+        emit_json(env)
         text = human(env, extra_lines)
         if text:
             sys.stderr.write(text + "\n")

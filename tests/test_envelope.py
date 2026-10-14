@@ -61,6 +61,28 @@ def test_failure_envelopes(closed, args, code):
     assert env["status"] == "fail" and env["exit"] == code
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["close", "--month", "bogus"],
+        ["explain", "--depth", "-1", "x"],
+        ["inject", "--error", "nope", "--out", "o"],
+        ["close"],  # missing --month
+    ],
+)
+def test_usage_error_prints_failure_envelope_under_json(args):
+    result = margin(*args, "--json")
+    assert result.code == 2, result.stderr
+    env = validate(result.json)
+    assert env["status"] == "fail" and env["exit"] == 2
+    assert env["message"] and "Usage:" in result.stderr
+
+
+def test_usage_error_without_json_prints_no_envelope():
+    result = margin("close", "--month", "bogus")
+    assert result.code == 2 and result.stdout == ""
+
+
 def test_schema_rejects_malformed_envelopes():
     good = {"schema_version": 1, "status": "ok", "exit": 0}
     VALIDATOR.validate(good)

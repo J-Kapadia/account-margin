@@ -25,26 +25,39 @@ from .paths import Paths, parse_month, resolve
 from .warehouse import connect
 
 
-def common_options(fn):
-    """The global flags, accepted by every command."""
-    options = [
-        click.option("--books", help="Books directory (MARGIN_BOOKS)."),
-        click.option("--truth", help="Truth directory (MARGIN_TRUTH)."),
-        click.option("--warehouse", help="Warehouse file (MARGIN_WAREHOUSE)."),
-        click.option("--config", help="Config directory (MARGIN_CONFIG_DIR)."),
-        click.option("--fixture", type=click.Choice(["small", "mini", "scenario"]),
-                     help="Fixture preset: sets books, truth and the default warehouse."),
-        click.option("--json", "as_json", is_flag=True, help="Machine output on stdout."),
-    ]
-    for option in reversed(options):
-        fn = option(fn)
+_PATH_OPTIONS = {
+    "books": "Books directory (MARGIN_BOOKS).",
+    "truth": "Truth directory (MARGIN_TRUTH).",
+    "warehouse": "Warehouse file (MARGIN_WAREHOUSE).",
+    "config": "Config directory (MARGIN_CONFIG_DIR).",
+}
 
-    @functools.wraps(fn)
-    def wrapper(*args, books, truth, warehouse, config, fixture, as_json, **kwargs):
-        paths = resolve(books=books, truth=truth, warehouse=warehouse, config=config, fixture=fixture)
-        return _guard(as_json, lambda: fn(*args, paths=paths, **kwargs))
 
-    return wrapper
+def common_options(*used: str):
+    """`--json`, `--fixture` and the path flags in `used`: only the paths a command reads."""
+    unknown = set(used) - set(_PATH_OPTIONS)
+    if unknown:
+        raise ValueError(f"unknown path options: {sorted(unknown)}")
+
+    def decorate(fn):
+        options = [click.option(f"--{name}", help=_PATH_OPTIONS[name]) for name in _PATH_OPTIONS if name in used]
+        options += [
+            click.option("--fixture", type=click.Choice(["small", "mini", "scenario"]),
+                         help="Fixture preset: sets books, truth and the default warehouse."),
+            click.option("--json", "as_json", is_flag=True, help="Machine output on stdout."),
+        ]
+        for option in reversed(options):
+            fn = option(fn)
+
+        @functools.wraps(fn)
+        def wrapper(*args, fixture, as_json, **kwargs):
+            flags = {name: kwargs.pop(name) for name in used}
+            paths = resolve(**flags, fixture=fixture)
+            return _guard(as_json, lambda: fn(*args, paths=paths, **kwargs))
+
+        return wrapper
+
+    return decorate
 
 
 def _guard(as_json: bool, action) -> None:
@@ -71,7 +84,21 @@ def _month_option(value: str) -> str:
         raise click.BadParameter(err.message) from None
 
 
-@click.group()
+class _Group(click.Group):
+    """A usage error under --json prints the failure envelope on stdout; Click still prints its text on stderr."""
+
+    def invoke(self, ctx: click.Context):
+        args = [*ctx.protected_args, *ctx.args]
+        wants_json = "--json" in (args[: args.index("--")] if "--" in args else args)
+        try:
+            return super().invoke(ctx)
+        except click.UsageError as err:
+            if wants_json:
+                envelope.emit_json(envelope.failure(MarginError(EXIT_USAGE, err.format_message())))
+            raise
+
+
+@click.group(cls=_Group)
 @click.version_option(package_name="account-margin")
 def main() -> None:
     """Contribution profit by customer account, with controls."""
@@ -86,7 +113,7 @@ def main() -> None:
 @click.option("--prices", "prices_path", type=click.Path(path_type=Path), default=None,
               help="Model price list (MARGIN_PRICES; the fixture's with --fixture mini).")
 @click.option("--verify", is_flag=True, help="Check the manifest, the config hashes and a regeneration.")
-@common_options
+@common_options("books", "truth", "warehouse", "config")
 def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months: int | None,
         first_month: str | None, prices_path: Path | None, verify: bool):
     """Generate the books and the answer key, or verify them against the manifest."""
@@ -131,7 +158,7 @@ def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months:
 @click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
               help="Month to close, YYYY-MM.")
 @click.option("--check", is_flag=True, help="Compare with the answer key (truth/).")
-@common_options
+@common_options("books", "truth", "warehouse", "config")
 def close(paths: Paths, month: str, check: bool):
     """Compute, control and record a month, closing earlier months first."""
     if check:
@@ -154,7 +181,7 @@ def _require_warehouse(paths: Paths) -> None:
 @click.argument("number_id")
 @click.option("--depth", type=click.IntRange(min=0), default=None,
               help="Walk composite numbers N levels toward their leaves (default: to the leaves).")
-@common_options
+@common_options("warehouse")
 def explain(paths: Paths, number_id: str, depth: int | None):
     """Print the provenance chain of NUMBER_ID, ending at source rows."""
     _require_warehouse(paths)
@@ -173,7 +200,7 @@ def explain(paths: Paths, number_id: str, depth: int | None):
 @click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
               help="Month to publish, YYYY-MM.")
 @click.option("--out", type=click.Path(path_type=Path), default=Path("site"), show_default=True)
-@common_options
+@common_options("warehouse")
 def memo(paths: Paths, month: str, out: Path):
     """Build the one-page memo for a closed month."""
     _require_warehouse(paths)
@@ -195,7 +222,7 @@ def memo(paths: Paths, month: str, out: Path):
 @click.option("--out", required=True, type=click.Path(path_type=Path), help="New books directory to write.")
 @click.option("--seed", type=int, default=gen_mod.DEFAULT_SEED, show_default=True,
               help="Seed of the row choice, recorded in the copy's manifest header.")
-@common_options
+@common_options("books")
 def inject(paths: Paths, error: str, out: Path, seed: int):
     """Copy the books with one seeded error, to test that a control names it."""
     result = inject_mod.inject(paths.books, out, error, seed)
@@ -205,7 +232,7 @@ def inject(paths: Paths, error: str, out: Path, seed: int):
 @main.command()
 @click.option("--signer", required=True, help="Name of the signer.")
 @click.option("--role", required=True, help="Role of the signer, for example finance_owner.")
-@common_options
+@common_options("config")
 def signoff(paths: Paths, signer: str, role: str):
     """Sign the allocation and policy configs. Human-only: needs a terminal."""
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
