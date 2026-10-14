@@ -6,6 +6,22 @@ One command a month turns a usage-priced AI company's books into contribution pr
 
 Everything is synthetic. The books belong to "Acme AI", a generated usage-priced AI API business (about 300 accounts, 12 months), written by a seeded generator. The only real numbers are cited, published list prices.
 
+## Status
+
+Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Still to come: roll-forward and month locking, the token-price scenario, the full memo site, `agreement`, `doctor` and `status`.
+
+The production allocation and policy configs are not signed yet, so run it today on the committed `mini` fixture (12 accounts, February to April 2026), which carries its own signed configs:
+
+```bash
+uv sync --frozen
+export MARGIN_SIGNOFF_DIR=tests/fixtures/signoff
+uv run margin close --fixture mini --config tests/fixtures/config --month 2026-04 --check
+uv run margin explain cp/2026-03/acct_0001/contribution_profit --fixture mini
+uv run pytest -q tests/test_injected_errors.py
+```
+
+The close runs every earlier month first, passes every control and matches the answer key; `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it.
+
 ## What it does
 
 - Computes contribution profit per account per month: revenue, less inference, cloud and support cost to serve the account.
@@ -21,7 +37,7 @@ Everything is synthetic. The books belong to "Acme AI", a generated usage-priced
 
 Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
-## Run it
+## Full run (when v0.1 is complete)
 
 ```bash
 uv sync --frozen
