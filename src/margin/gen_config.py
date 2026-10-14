@@ -22,7 +22,6 @@ POLICY_FILE = "policy.yaml"
 ALLOCATION_FILE = "allocation.yaml"
 KNOWN_RULES = ("by_tokens", "by_revenue", "equal_usage")
 DRIVER_CODES = ("DEEP_DISCOUNT", "MODEL_MIX", "SUPPORT_LOAD", "DEDICATED_CLOUD")
-NANO_PER_USD = 1_000_000_000
 
 
 def sha256_file(path: Path) -> str:

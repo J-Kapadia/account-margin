@@ -63,7 +63,7 @@ grep -rq data-num-id "$out"
 uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --json
 # dbt's own tests over the closed warehouse (the model defaults in dbt_project.yml match the fixture config).
 MARGIN_WAREHOUSE_PATH="$work/mini.duckdb" uv run dbt test --project-dir dbt --profiles-dir dbt \
-  --exclude tag:scenario --no-use-colors --quiet
+  --no-use-colors --quiet
 # --check against the answer key: on the months just closed it re-runs the comparison and changes no state.
 uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --check --json
 # The newest month too: --check includes the provenance assertion (CTL-PROV), and explain re-derives digests.

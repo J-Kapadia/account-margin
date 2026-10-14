@@ -48,7 +48,6 @@ def build(warehouse: Path, config_dir: Path) -> None:
     cmd = [
         sys.executable, "-c", _DBT_MAIN, "build",
         "--project-dir", str(DBT_DIR), "--profiles-dir", str(DBT_DIR),
-        "--exclude", "tag:scenario",  # scenario models never run in close
         "--vars", json.dumps(dbt_vars(config_dir)),
         "--no-use-colors", "--quiet",
     ]

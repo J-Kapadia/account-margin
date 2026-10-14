@@ -14,7 +14,7 @@ import click
 
 from . import check as check_mod
 from . import close as close_mod
-from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, load, memo as memo_mod
+from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
 from . import inject as inject_mod
 from . import signoff as signoff_mod
 from .errors import (

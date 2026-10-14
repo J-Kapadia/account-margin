@@ -256,10 +256,6 @@ def _account_row(account: str) -> str:
     return _frag("raw.accounts", f"r.account_id = '{_q(account)}'")
 
 
-def revenue_query(account_id: str, month: str) -> str:
-    return _union([_invoices(month, account_id)])
-
-
 def component_query(component: str, account: str, month: str, signed_rule: str) -> str:
     frags = {
         "revenue": lambda: [_invoices(month, account)],
