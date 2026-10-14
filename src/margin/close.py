@@ -10,9 +10,11 @@ is unchanged.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 import duckdb
 
+from . import check as check_mod
 from . import controls, dbt_runner, load, prov, signoff
 from .books import check_in_window, months_between
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, MarginError
@@ -40,8 +42,14 @@ def _fail_controls(month: str, results: list[dict], *, prefix: str = "") -> Marg
     )
 
 
-def close_month(paths: Paths, month: str) -> dict:
-    """Close `month` (and any earlier month of the window); return the envelope fields."""
+def close_month(paths: Paths, month: str, *, check: bool = False) -> dict:
+    """Close `month` (and any earlier month of the window); return the envelope fields.
+
+    With `check`, the target month is compared with the answer key before it is marked closed;
+    a mismatch leaves it unclosed. On a month already closed the comparison is a read.
+    """
+    if check:
+        check_mod.require_truth(paths.truth, month=month)
     first, _ = check_in_window(paths.books, month)
     sign = signoff.verify(paths.config, month=month)  # exit 4 before anything is read or written
     months = months_between(first, month)
@@ -58,6 +66,10 @@ def close_month(paths: Paths, month: str) -> dict:
         load.load_months(con, paths.books, first, month, run_id)
         load.load_reference(con, paths.prices)
         load.load_config(con, paths.config)
+        stored = con.execute(
+            "SELECT status FROM state.close_state WHERE month = ?", [month_date(month)]
+        ).fetchone()
+        read_only_check = check and stored is not None and stored[0] in ("closed", "locked")
     finally:
         con.close()  # dbt needs the file: margin holds no connection while it runs
 
@@ -67,9 +79,14 @@ def close_month(paths: Paths, month: str) -> dict:
     try:
         known: dict[str, dict] = {}
         for m in months:
-            result = _close_one(con, m, run_id, sign, config, known, catch_up=m != month)
+            result = _close_one(
+                con, m, run_id, sign, config, known, catch_up=m != month,
+                truth=paths.truth if check and m == month else None,
+            )
         # The month-less records describe the files this run loaded; they sit outside result_hash.
-        _write(con, prov.reference_records(con, run_id=run_id, signoff=sign))
+        # A `--check` of a month already closed changes no state, so it leaves them as they are.
+        if not read_only_check:
+            _write(con, prov.reference_records(con, run_id=run_id, signoff=sign))
         return result
     finally:
         con.close()
@@ -87,7 +104,7 @@ def _write(con: duckdb.DuckDBPyConnection, records: list[dict]) -> None:
 
 def _close_one(
     con: duckdb.DuckDBPyConnection, month: str, run_id: str, sign: signoff.Signoff, config,
-    known: dict[str, dict], *, catch_up: bool,
+    known: dict[str, dict], *, catch_up: bool, truth: Path | None = None,
 ) -> dict:
     gate = {"id": signoff.GATE_ID, "status": "pass", "violating_rows": 0, "detail": []}
     controls.record(con, month, run_id, gate)
@@ -117,8 +134,10 @@ def _close_one(
                                                           "violating_rows": 1}],
                 failed_controls=[lock],
             )
-        return {"month": month, "controls": _public(results), "result_hash": new_hash}
-    # No row, or an `open` one: the month goes open -> closed with its records, in one transaction.
+        return _checked(con, month, truth, config, records, results)
+    # No row, or an `open` one: step 7 runs before the month is marked closed, so a mismatch
+    # leaves it open. Then it goes open -> closed with its records, in one transaction.
+    outcome = _checked(con, month, truth, config, records, results)
     con.execute("BEGIN")
     try:
         con.execute("DELETE FROM prov.records WHERE month = ?", [month_date(month)])
@@ -131,4 +150,17 @@ def _close_one(
     except Exception:
         con.execute("ROLLBACK")
         raise
-    return {"month": month, "controls": _public(results), "result_hash": new_hash}
+    return outcome
+
+
+def _checked(
+    con: duckdb.DuckDBPyConnection, month: str, truth: Path | None, config, records: list[dict],
+    results: list[dict],
+) -> dict:
+    """The close outcome; with `truth`, the answer-key comparison runs first and may exit 5 or 6."""
+    controls_out = _public(results)
+    if truth is not None:
+        checks = check_mod.evaluate(con, month, truth, config, records)
+        check_mod.raise_for(month, checks, controls_out)
+        controls_out = controls_out + _public(checks)
+    return {"month": month, "controls": controls_out, "result_hash": prov.result_hash(records)}

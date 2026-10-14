@@ -298,8 +298,9 @@ def test_close_runs_the_new_layers_on_mini_with_the_fixture_config(tmp_path):
                     "--warehouse", str(tmp_path / "w.duckdb"), "--json")
     assert result.code == 0, result.stderr
     assert result.json["controls"] == [
-        {"id": "CTL-SIGNOFF", "status": "pass", "violating_rows": 0},
-        {"id": "CTL-TIE-REV", "status": "pass", "violating_rows": 0},
+        {"id": c, "status": "pass", "violating_rows": 0}
+        for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-PRICE-PIN", "CTL-TIE-CLD", "CTL-TIE-INF",
+                  "CTL-TIE-REV", "CTL-TIE-SUP")
     ]
     with duckdb.connect(str(tmp_path / "w.duckdb"), read_only=True) as c:
         assert c.execute("SELECT count(*) FROM mart.fct_flags").fetchone()[0] == 24  # 2026-02 and 2026-03

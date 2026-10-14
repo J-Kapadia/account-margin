@@ -49,8 +49,9 @@ def test_close_is_idempotent(closed):
     second = closed.close().json
     assert first["result_hash"] == second["result_hash"]
     assert first["controls"] == [
-        {"id": "CTL-SIGNOFF", "status": "pass", "violating_rows": 0},
-        {"id": "CTL-TIE-REV", "status": "pass", "violating_rows": 0},
+        {"id": c, "status": "pass", "violating_rows": 0}
+        for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-PRICE-PIN", "CTL-TIE-CLD", "CTL-TIE-INF",
+                  "CTL-TIE-REV", "CTL-TIE-SUP")
     ]
 
 

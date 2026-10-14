@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 
+from . import check as check_mod
 from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, load, memo as memo_mod
 from . import signoff as signoff_mod
@@ -132,15 +133,11 @@ def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months:
 def close(paths: Paths, month: str, check: bool):
     """Compute, control and record a month, closing earlier months first."""
     if check:
-        if not paths.truth.is_dir():
-            raise MarginError(
-                EXIT_PRECONDITION, "truth/ not found: --check needs the answer key", month=month
-            )
-        raise MarginError(EXIT_USAGE, "--check is not available yet", month=month)
+        check_mod.require_truth(paths.truth, month=month)  # before the lock and before any write
     with warehouse_lock(paths.lock, exclusive=True):
-        result = close_mod.close_month(paths, month)
+        result = close_mod.close_month(paths, month, check=check)
     return {"month": result["month"], "controls": result["controls"],
-            "result_hash": result["result_hash"]}, [f"closed {month}"]
+            "result_hash": result["result_hash"]}, [f"closed {month}" + (" (checked against the answer key)" if check else "")]
 
 
 def _open_reader(paths: Paths):
