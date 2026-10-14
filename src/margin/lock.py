@@ -20,7 +20,8 @@ LOCK_MESSAGE = "another margin process holds the warehouse"
 
 @contextmanager
 def warehouse_lock(lock_path: Path, *, exclusive: bool) -> Iterator[None]:
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    if exclusive:  # a reader's warehouse already exists, so its directory does too
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
     try:
         try:

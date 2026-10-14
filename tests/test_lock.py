@@ -61,3 +61,17 @@ def test_readers_share_the_lock(closed):
         assert writer.code == 70
     finally:
         os.close(fd)
+
+
+def test_explain_and_memo_on_a_missing_warehouse_exit_4_and_write_nothing(tmp_path):
+    for args in (("explain", "cp/2026-03/acct_0001/revenue"), ("memo", "--month", "2026-03")):
+        under_missing_dir = tmp_path / "nope" / "x.duckdb"
+        result = margin(*args, "--json", "--warehouse", str(under_missing_dir))
+        assert result.code == 4, result.stderr
+        assert not under_missing_dir.parent.exists()
+
+        fresh = tmp_path / "fresh.duckdb"
+        result = margin(*args, "--json", "--warehouse", str(fresh))
+        assert result.code == 4, result.stderr
+        assert str(fresh) in result.json["message"]
+        assert list(tmp_path.iterdir()) == []

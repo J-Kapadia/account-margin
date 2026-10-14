@@ -142,12 +142,12 @@ def close(paths: Paths, month: str, check: bool):
             "result_hash": result["result_hash"]}, [f"closed {month}" + (" (checked against the answer key)" if check else "")]
 
 
-def _open_reader(paths: Paths):
+def _require_warehouse(paths: Paths) -> None:
+    """Fail before the reader lock: a missing warehouse must leave no directory or lock file."""
     if not paths.warehouse.is_file():
         raise MarginError(
             EXIT_PRECONDITION, f"no warehouse at {paths.warehouse}: run margin close first"
         )
-    return connect(paths.warehouse, read_only=True)
 
 
 @main.command()
@@ -157,8 +157,9 @@ def _open_reader(paths: Paths):
 @common_options
 def explain(paths: Paths, number_id: str, depth: int | None):
     """Print the provenance chain of NUMBER_ID, ending at source rows."""
+    _require_warehouse(paths)
     with warehouse_lock(paths.lock, exclusive=False):
-        con = _open_reader(paths)
+        con = connect(paths.warehouse, read_only=True)
         try:
             node = explain_mod.explain(con, number_id, depth)
         finally:
@@ -175,8 +176,9 @@ def explain(paths: Paths, number_id: str, depth: int | None):
 @common_options
 def memo(paths: Paths, month: str, out: Path):
     """Build the one-page memo for a closed month."""
+    _require_warehouse(paths)
     with warehouse_lock(paths.lock, exclusive=False):
-        con = _open_reader(paths)
+        con = connect(paths.warehouse, read_only=True)
         try:
             explain_mod.require_closed(con, month)
             files = memo_mod.build(con, month, out)
