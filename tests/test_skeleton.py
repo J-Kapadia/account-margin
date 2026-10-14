@@ -96,19 +96,19 @@ def test_a_ledger_slip_fails_the_named_control_and_leaves_the_month_open(tmp_pat
     assert re.search(r"rows [0-9a-f]{32}(,[0-9a-f]{32})+", failed["detail"][0])
 
     # The month never closed: readers refuse it.
-    assert margin("memo", "--month", "2026-03", "--out", str(tmp_path / "s"), *ws.flags()).code == 4
-    assert margin("explain", "cp/2026-03/acct_0001/revenue", *ws.flags()).code == 4
+    assert margin("memo", "--month", "2026-03", "--out", str(tmp_path / "s"), *ws.warehouse_flags()).code == 4
+    assert margin("explain", "cp/2026-03/acct_0001/revenue", *ws.warehouse_flags()).code == 4
 
 
 def test_explain_ends_at_source_rows(closed):
-    leaf = margin("explain", "cp/2026-03/acct_0001/revenue", "--json", *closed.flags()).json
+    leaf = margin("explain", "cp/2026-03/acct_0001/revenue", "--json", *closed.warehouse_flags()).json
     chain = leaf["chain"]
     assert chain["value_cents"] == 98771 and chain["digest_verified"] is True
     assert len(chain["rows"]) == 3
     assert {r["source_table"] for r in chain["rows"]} == {"raw.invoices"}
     assert all(re.fullmatch(r"[0-9a-f]{32}", r["_row_hash"]) for r in chain["rows"])
 
-    rollup = margin("explain", "rollup/2026-03/revenue", "--json", *closed.flags()).json["chain"]
+    rollup = margin("explain", "rollup/2026-03/revenue", "--json", *closed.warehouse_flags()).json["chain"]
     assert rollup["value_cents"] == TOTAL
     assert [c["number_id"] for c in rollup["children"]] == [
         f"cp/2026-03/acct_000{n}/revenue" for n in (1, 2, 3)
@@ -116,12 +116,12 @@ def test_explain_ends_at_source_rows(closed):
     assert all(c["rows"] for c in rollup["children"])  # the default depth reaches the leaves
 
     shallow = margin("explain", "rollup/2026-03/revenue", "--depth", "0", "--json",
-                     *closed.flags()).json["chain"]
+                     *closed.warehouse_flags()).json["chain"]
     assert all("rows" not in c for c in shallow["children"])
 
 
 def test_explain_unknown_id_names_the_nearest(closed):
-    result = margin("explain", "cp/2026-03/acct_0001/revenu", "--json", *closed.flags())
+    result = margin("explain", "cp/2026-03/acct_0001/revenu", "--json", *closed.warehouse_flags())
     assert result.code == 2
     assert "nearest: cp/2026-03/acct_0001/revenue" in result.json["message"]
 
@@ -131,14 +131,14 @@ def test_explain_detects_a_forged_digest(closed_copy):
     con.execute("UPDATE prov.records SET input_digest = repeat('0', 64) "
                 "WHERE number_id = 'cp/2026-03/acct_0002/revenue'")
     con.close()
-    result = margin("explain", "cp/2026-03/acct_0002/revenue", "--json", *closed_copy.flags())
+    result = margin("explain", "cp/2026-03/acct_0002/revenue", "--json", *closed_copy.warehouse_flags())
     assert result.code == 6
     assert "digest mismatch" in result.json["message"]
 
 
 def test_memo_numbers_all_resolve_through_explain(closed, tmp_path):
     out = tmp_path / "site"
-    assert margin("memo", "--month", "2026-03", "--out", str(out), *closed.flags()).code == 0
+    assert margin("memo", "--month", "2026-03", "--out", str(out), *closed.warehouse_flags()).code == 0
     html = (out / "2026-03" / "index.html").read_text()
     ids = re.findall(r'data-num-id="([^"]+)" data-value="([^"]+)"', html)
     assert {i for i, _ in ids} >= {"rollup/2026-03/revenue", "cp/2026-03/acct_0003/revenue",
@@ -156,7 +156,7 @@ def test_memo_numbers_all_resolve_through_explain(closed, tmp_path):
 
 def test_memo_has_no_naked_numerals(closed, tmp_path):
     out = tmp_path / "site"
-    margin("memo", "--month", "2026-03", "--out", str(out), *closed.flags())
+    margin("memo", "--month", "2026-03", "--out", str(out), *closed.warehouse_flags())
     html = (out / "2026-03" / "index.html").read_text()
     body = re.sub(r"<style.*?</style>", "", html, flags=re.S)
     body = re.sub(r"<span data-num-id.*?</span>", "", body)

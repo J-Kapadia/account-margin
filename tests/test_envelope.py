@@ -36,10 +36,10 @@ def test_close_envelope(closed):
 
 
 def test_explain_and_memo_envelopes(closed, tmp_path):
-    env = validate(margin("explain", "rollup/2026-03/revenue", "--json", *closed.flags()).json)
+    env = validate(margin("explain", "rollup/2026-03/revenue", "--json", *closed.warehouse_flags()).json)
     assert env["number_id"] == "rollup/2026-03/revenue"
     env = validate(
-        margin("memo", "--month", "2026-03", "--out", str(tmp_path), "--json", *closed.flags()).json
+        margin("memo", "--month", "2026-03", "--out", str(tmp_path), "--json", *closed.warehouse_flags()).json
     )
     assert env["files"]
 
@@ -55,7 +55,8 @@ def test_explain_and_memo_envelopes(closed, tmp_path):
     ],
 )
 def test_failure_envelopes(closed, args, code):
-    result = margin(*args, "--json", *closed.flags())
+    flags = closed.warehouse_flags() if args[0] in ("memo", "explain") else closed.flags()
+    result = margin(*args, "--json", *flags)
     assert result.code == code, result.stderr
     env = validate(result.json)
     assert env["status"] == "fail" and env["exit"] == code

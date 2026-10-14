@@ -36,7 +36,7 @@ def test_writer_exits_70_while_another_process_holds_the_warehouse(closed, tmp_p
         result = margin("close", "--month", "2026-03", "--json", *closed.flags())
         assert result.code == 70
         assert result.json["message"] == "another margin process holds the warehouse"
-        reader = margin("explain", "cp/2026-03/acct_0001/revenue", "--json", *closed.flags())
+        reader = margin("explain", "cp/2026-03/acct_0001/revenue", "--json", *closed.warehouse_flags())
         assert reader.code == 70  # a reader cannot run beside a writer
     finally:
         holder.kill()
@@ -47,7 +47,7 @@ def test_killed_holder_needs_no_cleanup(closed):
     holder = hold_exclusive(str(closed.warehouse) + ".lock")
     holder.send_signal(signal.SIGKILL)
     holder.wait()
-    result = margin("explain", "cp/2026-03/acct_0001/revenue", "--json", *closed.flags())
+    result = margin("explain", "cp/2026-03/acct_0001/revenue", "--json", *closed.warehouse_flags())
     assert result.code == 0, result.stderr
 
 
@@ -55,7 +55,7 @@ def test_readers_share_the_lock(closed):
     fd = os.open(str(closed.warehouse) + ".lock", os.O_RDWR | os.O_CREAT)
     try:
         fcntl.flock(fd, fcntl.LOCK_SH)
-        result = margin("explain", "rollup/2026-03/revenue", "--json", *closed.flags())
+        result = margin("explain", "rollup/2026-03/revenue", "--json", *closed.warehouse_flags())
         assert result.code == 0, result.stderr
         writer = margin("close", "--month", "2026-03", "--json", *closed.flags())
         assert writer.code == 70

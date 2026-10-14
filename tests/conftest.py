@@ -60,6 +60,10 @@ class Workspace:
     def flags(self) -> list[str]:
         return ["--books", str(self.books), "--warehouse", str(self.warehouse), "--config", str(FIXTURE_CONFIG)]
 
+    def warehouse_flags(self) -> list[str]:
+        """The only path flag explain and memo take."""
+        return ["--warehouse", str(self.warehouse)]
+
     def gen(self, *extra: str) -> Result:
         return margin("gen", "--fixture", "small", "--out", str(self.books), "--json", *extra)
 
