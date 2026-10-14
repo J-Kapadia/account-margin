@@ -34,11 +34,23 @@ CREATE TABLE IF NOT EXISTS state.books (books_id VARCHAR);
 # connection the product opens is capped instead.
 MEMORY_LIMIT_VAR = "MARGIN_DUCKDB_MEMORY_LIMIT"
 DEFAULT_MEMORY_LIMIT = "2GB"
+# Likewise DuckDB would use every core per connection: several processes each running a
+# query at once would make the load several times the core count.
+THREADS_VAR = "MARGIN_DUCKDB_THREADS"
+DEFAULT_THREADS = 2
 
 
 def memory_limit() -> str:
     """The cap on every connection: `MARGIN_DUCKDB_MEMORY_LIMIT`, default 2GB."""
     return os.environ.get(MEMORY_LIMIT_VAR) or DEFAULT_MEMORY_LIMIT
+
+
+def threads() -> int:
+    """The thread cap on every connection: `MARGIN_DUCKDB_THREADS`, default 2."""
+    raw = os.environ.get(THREADS_VAR) or str(DEFAULT_THREADS)
+    if not raw.isdigit() or int(raw) < 1:
+        raise ValueError(f"{THREADS_VAR} must be a positive integer, not {raw!r}")
+    return int(raw)
 
 
 def temp_directory(path: Path | None) -> Path:
@@ -56,7 +68,7 @@ def _quoted(value: str) -> str:
 def connect(path: Path | None = None, *, read_only: bool = False) -> duckdb.DuckDBPyConnection:
     """Open the warehouse at `path`, or an in-memory database when `path` is None, capped.
 
-    The cap and the spill directory are applied with SET after opening rather than passed as
+    The caps and the spill directory are applied with SET after opening rather than passed as
     connection config: DuckDB shares one instance per file within a process and refuses a
     second connection opened with a different config."""
     if path is None:
@@ -66,6 +78,7 @@ def connect(path: Path | None = None, *, read_only: bool = False) -> duckdb.Duck
             path.parent.mkdir(parents=True, exist_ok=True)
         con = duckdb.connect(str(path), read_only=read_only)
     con.execute(f"SET memory_limit = {_quoted(memory_limit())}")
+    con.execute(f"SET threads = {threads()}")
     con.execute(f"SET temp_directory = {_quoted(str(temp_directory(path)))}")
     return con
 
