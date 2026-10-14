@@ -22,6 +22,7 @@ from pathlib import Path
 
 import duckdb
 
+from .errors import EXIT_PROVENANCE, MarginError
 from .gen_config import Config
 from .paths import ROOT
 from .signoff import Signoff
@@ -42,23 +43,55 @@ CONFIG_NAMES = ("allocation", "policy")
 # The column that names a row of a reference file in `ref/<file>/<key>`; the first column otherwise.
 REF_KEYS = {"model_prices": "model", "support_rates": "tier"}
 
-# The closed ID grammar for the families `close` writes.
+# The closed ID grammar (plan §7.1): the number registry is `prov.records` plus this set.
 _MONTH = r"\d{4}-(?:0[1-9]|1[0-2])"
 _ACCOUNT = r"[A-Za-z0-9_]+"
 _ROLLUPS = "|".join((*ROLLUP_SUMS, *ROLLUP_COUNTS, *ROLLUP_STATS)) + "|accounts_status_change_[a-z_]+"
-ID_PATTERNS = [
-    re.compile(rf"^cp/({_MONTH})/{_ACCOUNT}/(?:{'|'.join(COMPONENTS)})$"),
-    re.compile(rf"^pnl/({_MONTH})/(?:{'|'.join(ALL_GL_CODES)})$"),
-    re.compile(rf"^rollup/({_MONTH})/(?:{_ROLLUPS})$"),
-    re.compile(rf"^flag/({_MONTH})/{_ACCOUNT}$"),
-    re.compile(rf"^cpr/({_MONTH})/{_ACCOUNT}/[a-z_]+$"),
-    re.compile(rf"^cohort/({_MONTH})/[a-z_]+_median$"),
-]
+_CASE = "(?:full|half|flat)"
+_QUARTER = "Q[1-4]"
+SCENARIO_METRICS = ("inference_cost", "contribution_profit", "margin_pct", "above_floor")
+BVB_ITEMS = ("build_cost", "build_cost_amortised", "run_cost_annual", "maintenance_allowance")
+# family -> patterns; group 1 of a pattern, when the family has a month slot, is the month.
+FAMILY_PATTERNS: dict[str, list[re.Pattern]] = {
+    "cp": [re.compile(rf"^cp/({_MONTH})/{_ACCOUNT}/(?:{'|'.join(COMPONENTS)})$")],
+    "pnl": [re.compile(rf"^pnl/({_MONTH})/(?:{'|'.join(ALL_GL_CODES)})$")],
+    "rollup": [re.compile(rf"^rollup/({_MONTH})/(?:{_ROLLUPS})$")],
+    "flag": [re.compile(rf"^flag/({_MONTH})/{_ACCOUNT}$")],
+    "cpr": [re.compile(rf"^cpr/({_MONTH})/{_ACCOUNT}/[a-z_]+$")],
+    "cohort": [re.compile(rf"^cohort/({_MONTH})/[a-z_]+_median$")],
+    # The base month is the month slot of every scenario number.
+    "scenario": [
+        re.compile(rf"^scenario/({_MONTH})/{_CASE}/{_QUARTER}/{_ACCOUNT}/(?:{'|'.join(SCENARIO_METRICS)})$"),
+        re.compile(rf"^scenario/({_MONTH})/{_CASE}/summary/{_ACCOUNT}/recovery_quarter$"),
+        re.compile(rf"^scenario/({_MONTH})/summary/(?:monthly_rate|computed_change)$"),
+        re.compile(rf"^scenario/({_MONTH})/{_CASE}/summary/(?:persistence_pct|accounts_recovered_{_QUARTER})$"),
+    ],
+    "ref": [re.compile(r"^ref/[a-z0-9_]+/[^/\s][^\s]*$")],
+    "cfg": [re.compile(r"^cfg/[a-z_]+$")],
+    "bvb": [re.compile(rf"^bvb/(?:{'|'.join(BVB_ITEMS)}|vendor_annual_cost/[^/\s]+)$")],
+}
+MONTH_LESS_FAMILIES = ("ref", "cfg", "bvb")
+
+
+def family_of(number_id: str) -> str | None:
+    """The family of an ID in the closed grammar, or None when the ID is outside it."""
+    family = number_id.split("/", 1)[0]
+    if any(p.match(number_id) for p in FAMILY_PATTERNS.get(family, ())):
+        return family
+    return None
+
+
+def is_registered(number_id: str) -> bool:
+    return family_of(number_id) is not None
 
 
 def month_of_id(number_id: str) -> str | None:
-    """The month a number ID belongs to, or None if the ID is outside the grammar."""
-    for pattern in ID_PATTERNS:
+    """The month slot of an ID (a scenario's base month), or None for a month-less ID or one
+    outside the grammar."""
+    family = family_of(number_id)
+    if family is None or family in MONTH_LESS_FAMILIES:
+        return None
+    for pattern in FAMILY_PATTERNS[family]:
         match = pattern.match(number_id)
         if match:
             return match.group(1)
@@ -100,6 +133,57 @@ def digest_children(pairs: list[tuple[str, str]]) -> str:
 def is_composite(source_query: str) -> bool:
     """A composite's source_query is the JSON list of its child IDs; a leaf's is SQL."""
     return source_query.startswith("[")
+
+
+CTL_PROV = "CTL-PROV"
+RECORD_COLS = (
+    "number_id", "month", "value_cents", "value_text", "unit", "step", "git_sha", "producer_kind",
+    "producer_id", "input_digest", "input_row_count", "source_query", "checks_passed", "signer",
+    "signoff_ref", "run_id",
+)
+
+
+def run_source_query(con: duckdb.DuckDBPyConnection, query: str) -> list[tuple]:
+    """Run a stored `source_query`: one SELECT statement or nothing. The text lives in a table a
+    person can edit, so a record whose query is anything else is a provenance failure."""
+    try:
+        statements = con.extract_statements(query)
+    except duckdb.Error as exc:
+        raise MarginError(EXIT_PROVENANCE, f"source_query does not parse: {exc}") from None
+    if len(statements) != 1 or statements[0].type != duckdb.StatementType.SELECT:
+        raise MarginError(EXIT_PROVENANCE, "source_query is not a single SELECT statement")
+    return con.execute(query).fetchall()
+
+
+def fetch_record(con: duckdb.DuckDBPyConnection, number_id: str) -> dict | None:
+    row = con.execute(
+        f"SELECT {', '.join(RECORD_COLS)} FROM prov.records WHERE number_id = ?", [number_id]
+    ).fetchone()
+    return None if row is None else dict(zip(RECORD_COLS, row))
+
+
+def rederive(con: duckdb.DuckDBPyConnection, rec: dict, get_child) -> tuple[str, list[tuple] | list[dict], int]:
+    """Re-derive a stored record's digest: a leaf from the rows its `source_query` selects, a
+    composite from its children's stored digests. `get_child(id)` returns a record or None.
+
+    Returns (digest, rows or child records, row/child count). Raises `MarginError` (exit 6) for a
+    query that is not a SELECT, or a child with no record.
+    """
+    query = rec["source_query"] or ""
+    if is_composite(query):
+        try:
+            child_ids = json.loads(query)
+        except ValueError:
+            raise MarginError(EXIT_PROVENANCE, f"{rec['number_id']}: child list does not parse") from None
+        children = []
+        for child_id in child_ids:
+            child = get_child(child_id)
+            if child is None:
+                raise MarginError(EXIT_PROVENANCE, f"provenance incomplete: no record for {child_id}")
+            children.append(child)
+        return digest_children([(c["number_id"], c["input_digest"]) for c in children]), children, len(children)
+    rows = run_source_query(con, query)
+    return digest_rows([r[1] for r in rows]), rows, len(rows)
 
 
 # ------------------------------------------------------------------ source queries
@@ -467,6 +551,10 @@ def month_input_digest(records: list[dict]) -> str:
 
 
 def write_records(con: duckdb.DuckDBPyConnection, records: list[dict]) -> None:
+    """Store records; an ID outside the closed grammar is refused (the registry is closed)."""
+    unregistered = [r["number_id"] for r in records if not is_registered(r["number_id"])]
+    if unregistered:
+        raise MarginError(EXIT_PROVENANCE, f"unregistered number ID {unregistered[0]}")
     for r in records:
         con.execute(
             "INSERT OR REPLACE INTO prov.records VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -477,3 +565,95 @@ def write_records(con: duckdb.DuckDBPyConnection, records: list[dict]) -> None:
                 r["checks_passed"], r["signer"], r["signoff_ref"], r["run_id"],
             ],
         )
+
+
+def write_config_records(con: duckdb.DuckDBPyConnection, *, run_id: str, signoff: Signoff) -> None:
+    """Store the `cfg/` records: the children of every `flag/` record, so they must exist when the
+    month's provenance is checked. Idempotent; they sit outside `result_hash`."""
+    write_records(con, config_records(con, _base(None, checks=[], run_id=run_id, signoff=signoff)))
+
+
+# ------------------------------------------------------------------ CTL-PROV
+
+
+def expected_ids(con: duckdb.DuckDBPyConnection, month: str, config: Config) -> list[str]:
+    """Every mart number of the month: each must have exactly one record."""
+    d = month_date(month)
+    rules = list(config.allocation.rules)
+    accounts = [a for (a,) in con.execute(
+        "SELECT account_id FROM mart.fct_contribution_profit WHERE month = ? ORDER BY 1", [d]).fetchall()]
+    expected = [f"cp/{month}/{a}/{c}" for a in accounts for c in COMPONENTS]
+    expected += [f"flag/{month}/{a}" for a in accounts]
+    expected += [f"cpr/{month}/{a}/{r}" for a in accounts for r in rules]
+    expected += [f"pnl/{month}/{code}" for code in ALL_GL_CODES]
+    expected += [
+        f"rollup/{month}/{m}"
+        for m in (*ROLLUP_SUMS, *ROLLUP_COUNTS, *ROLLUP_STATS, *(f"accounts_status_change_{r}" for r in rules))
+    ]
+    expected += [f"cohort/{month}/{drv.code.lower()}_median" for drv in config.policy.drivers]
+    return expected
+
+
+def control(
+    con: duckdb.DuckDBPyConnection, month: str, config: Config, *, expected_hash: str | None = None,
+) -> dict:
+    """CTL-PROV over the *stored* records: provenance complete and every digest re-derivable.
+
+    Violations, by number ID: an ID outside the registry; a mart number with no complete record;
+    a record whose digest, or row/child count, does not re-derive; and, given `expected_hash`,
+    a month whose stored records no longer hash to it. Returns the control-result shape
+    (id, status, violating_rows, detail); it raises nothing for a violation.
+    """
+    d = month_date(month)
+    problems: dict[str, str] = {}
+    stored = {
+        r["number_id"]: r for r in (
+            dict(zip(RECORD_COLS, row)) for row in con.execute(
+                f"SELECT {', '.join(RECORD_COLS)} FROM prov.records WHERE month = ? OR month IS NULL ORDER BY 1", [d]
+            ).fetchall()
+        )
+    }
+    month_records = [r for r in stored.values() if r["month"] is not None]
+    for (number_id,) in con.execute("SELECT number_id FROM prov.records").fetchall():
+        if not is_registered(number_id):
+            problems[number_id] = "not in the number registry"
+    for r in month_records:
+        if month_of_id(r["number_id"]) != month:
+            problems.setdefault(r["number_id"], "month column does not match the number ID")
+    for number_id in expected_ids(con, month, config):
+        r = stored.get(number_id)
+        if r is None or not r["input_digest"] or not r["source_query"] or (
+            r["value_cents"] is None and r["value_text"] is None
+        ):
+            problems.setdefault(number_id, "no complete provenance record")
+
+    def get_child(child_id: str) -> dict | None:
+        return stored.get(child_id) or fetch_record(con, child_id)
+
+    # The month's records, and the month-less records they hang on (the config leaves).
+    pending = {r["number_id"] for r in month_records}
+    for r in month_records:
+        if is_composite(r["source_query"] or ""):
+            try:
+                pending.update(c for c in json.loads(r["source_query"]) if c in stored)
+            except ValueError:
+                pass
+    for number_id in sorted(pending):
+        r = stored[number_id]
+        if number_id in problems or not r["source_query"]:
+            continue
+        try:
+            digest, _, count = rederive(con, r, get_child)
+        except MarginError as err:
+            problems[number_id] = err.message
+            continue
+        if digest != r["input_digest"]:
+            problems[number_id] = f"digest does not re-derive: stored {r['input_digest']}, derived {digest}"
+        elif count != r["input_row_count"]:
+            problems[number_id] = f"input_row_count {r['input_row_count']} but {count} inputs"
+    if expected_hash is not None:
+        got = result_hash(month_records)
+        if got != expected_hash:
+            problems[f"result_hash/{month}"] = f"stored records hash to {got}, expected {expected_hash}"
+    detail = [f"{number_id}: {why}" for number_id, why in sorted(problems.items())]
+    return {"id": CTL_PROV, "status": "fail" if detail else "pass", "violating_rows": len(detail), "detail": detail}

@@ -66,6 +66,10 @@ MARGIN_WAREHOUSE_PATH="$work/mini.duckdb" uv run dbt test --project-dir dbt --pr
   --exclude tag:scenario --no-use-colors --quiet
 # --check against the answer key: on the months just closed it re-runs the comparison and changes no state.
 uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --check --json
+# The newest month too: --check includes the provenance assertion (CTL-PROV), and explain re-derives digests.
+uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --check --json
+uv run margin explain rollup/2026-04/revenue --fixture mini --warehouse "$work/mini.duckdb" --json
+uv run margin explain cfg/policy --fixture mini --warehouse "$work/mini.duckdb"
 rc=0
 MARGIN_SIGNOFF_DIR="$work" uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" \
   --warehouse "$work/unsigned.duckdb" || rc=$?

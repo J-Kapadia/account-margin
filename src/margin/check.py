@@ -167,20 +167,7 @@ def rule_flags(con, month: str, truth: Path, rules: list[str], signed: str, reco
 
 def provenance_gaps(con, month: str, records: list[dict], config: Config) -> list[str]:
     """IDs of mart numbers with no record, or a record with no value, digest or source query."""
-    d = month_date(month)
-    rules = list(config.allocation.rules)
-    accounts = [a for (a,) in con.execute(
-        "SELECT account_id FROM mart.fct_contribution_profit WHERE month = ? ORDER BY 1", [d]).fetchall()]
-    expected = [f"cp/{month}/{a}/{c}" for a in accounts for c in prov.COMPONENTS]
-    expected += [f"flag/{month}/{a}" for a in accounts]
-    expected += [f"cpr/{month}/{a}/{r}" for a in accounts for r in rules]
-    expected += [f"pnl/{month}/{code}" for code in prov.ALL_GL_CODES]
-    expected += [
-        f"rollup/{month}/{m}"
-        for m in (*prov.ROLLUP_SUMS, *prov.ROLLUP_COUNTS, *prov.ROLLUP_STATS,
-                  *(f"accounts_status_change_{r}" for r in rules))
-    ]
-    expected += [f"cohort/{month}/{drv.code.lower()}_median" for drv in config.policy.drivers]
+    expected = prov.expected_ids(con, month, config)
     by_id = {r["number_id"]: r for r in records}
     bad = []
     for number_id in expected:

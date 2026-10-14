@@ -162,7 +162,9 @@ def explain(paths: Paths, number_id: str, depth: int | None):
             node = explain_mod.explain(con, number_id, depth)
         finally:
             con.close()
-    return {"month": node["month"], "number_id": number_id, "chain": node}, explain_mod.render(node)
+    fields = {"month": node["month"]} if node["month"] else {}  # a month-less ID has none
+    return {**fields, "number_id": number_id, "digest_verified": node["digest_verified"],
+            "chain": node}, explain_mod.render(node)
 
 
 @main.command()

@@ -17,7 +17,7 @@ import duckdb
 from . import check as check_mod
 from . import controls, dbt_runner, load, prov, signoff
 from .books import check_in_window, months_between
-from .errors import EXIT_CONTROL, EXIT_PRECONDITION, MarginError
+from .errors import EXIT_CONTROL, EXIT_PRECONDITION, EXIT_PROVENANCE, MarginError
 from .gen_config import load_config
 from .paths import Paths
 from .warehouse import connect, init_schemas, month_date
@@ -134,14 +134,27 @@ def _close_one(
                                                           "violating_rows": 1}],
                 failed_controls=[lock],
             )
-        return _checked(con, month, truth, config, records, results)
-    # No row, or an `open` one: step 7 runs before the month is marked closed, so a mismatch
-    # leaves it open. Then it goes open -> closed with its records, in one transaction.
-    outcome = _checked(con, month, truth, config, records, results)
+        # The month is as it was closed: CTL-PROV re-checks the records that are stored.
+        verdict = prov.control(con, month, config, expected_hash=stored[1])
+        controls.record(con, month, run_id, verdict)
+        outcome = _checked(con, month, truth, config, records, results, verdict)  # exit 5 first
+        if verdict["status"] == "fail":
+            raise _fail_provenance(month, results, verdict)
+        return outcome
+    # No row, or an `open` one: the records are written first and checked as stored (CTL-PROV,
+    # step 6b), then step 7 runs; a failure of either rolls the records back and leaves the month
+    # open. Then it goes open -> closed with its records, in one transaction.
+    verdict = None
     con.execute("BEGIN")
     try:
         con.execute("DELETE FROM prov.records WHERE month = ?", [month_date(month)])
         prov.write_records(con, records)
+        prov.write_config_records(con, run_id=run_id, signoff=sign)
+        verdict = prov.control(con, month, config, expected_hash=new_hash)
+        outcome = _checked(con, month, truth, config, records, results, verdict)  # exit 5 first
+        if verdict["status"] == "fail":
+            raise _fail_provenance(month, results, verdict)
+        controls.record(con, month, run_id, verdict)
         con.execute(
             "INSERT OR REPLACE INTO state.close_state VALUES (?, 'closed', ?, ?, ?, NULL)",
             [month_date(month), prov.month_input_digest(records), new_hash, run_id],
@@ -149,18 +162,29 @@ def _close_one(
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
+        if verdict is not None and verdict["status"] == "fail":
+            controls.record(con, month, run_id, verdict)
         raise
     return outcome
 
 
+def _fail_provenance(month: str, results: list[dict], verdict: dict) -> MarginError:
+    return MarginError(
+        EXIT_PROVENANCE, f"provenance check failed for {month}: {verdict['id']}",
+        month=month, controls=_public(results) + _public([verdict]),
+        failed_controls=[{k: verdict[k] for k in ("id", "violating_rows", "detail")}],
+    )
+
+
 def _checked(
     con: duckdb.DuckDBPyConnection, month: str, truth: Path | None, config, records: list[dict],
-    results: list[dict],
+    results: list[dict], verdict: dict,
 ) -> dict:
-    """The close outcome; with `truth`, the answer-key comparison runs first and may exit 5 or 6."""
+    """The close outcome; with `truth`, CTL-PROV is reported and the answer-key comparison runs
+    (it may exit 5 or 6). Without it, CTL-PROV is recorded in `ctl.control_results` only."""
     controls_out = _public(results)
     if truth is not None:
         checks = check_mod.evaluate(con, month, truth, config, records)
-        check_mod.raise_for(month, checks, controls_out)
-        controls_out = controls_out + _public(checks)
+        check_mod.raise_for(month, checks, controls_out + _public([verdict]))
+        controls_out = controls_out + _public([verdict]) + _public(checks)
     return {"month": month, "controls": controls_out, "result_hash": prov.result_hash(records)}
