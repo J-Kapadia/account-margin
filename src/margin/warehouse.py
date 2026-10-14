@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import duckdb
@@ -27,10 +29,45 @@ CREATE TABLE IF NOT EXISTS state.books (books_id VARCHAR);
 """
 
 
-def connect(path: Path, *, read_only: bool = False) -> duckdb.DuckDBPyConnection:
-    if not read_only:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    return duckdb.connect(str(path), read_only=read_only)
+# DuckDB would take 80% of the machine's memory per connection, and several processes open
+# connections at once (a close, its dbt subprocess, tests running in parallel): every
+# connection the product opens is capped instead.
+MEMORY_LIMIT_VAR = "MARGIN_DUCKDB_MEMORY_LIMIT"
+DEFAULT_MEMORY_LIMIT = "2GB"
+
+
+def memory_limit() -> str:
+    """The cap on every connection: `MARGIN_DUCKDB_MEMORY_LIMIT`, default 2GB."""
+    return os.environ.get(MEMORY_LIMIT_VAR) or DEFAULT_MEMORY_LIMIT
+
+
+def temp_directory(path: Path | None) -> Path:
+    """Where a connection spills to disk: beside the warehouse file, or for an in-memory
+    database under the system temp directory, one per process."""
+    if path is None:
+        return Path(tempfile.gettempdir()) / f"margin-duckdb-{os.getpid()}.tmp"
+    return path.parent / f"{path.name}.tmp"
+
+
+def _quoted(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def connect(path: Path | None = None, *, read_only: bool = False) -> duckdb.DuckDBPyConnection:
+    """Open the warehouse at `path`, or an in-memory database when `path` is None, capped.
+
+    The cap and the spill directory are applied with SET after opening rather than passed as
+    connection config: DuckDB shares one instance per file within a process and refuses a
+    second connection opened with a different config."""
+    if path is None:
+        con = duckdb.connect(":memory:")
+    else:
+        if not read_only:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        con = duckdb.connect(str(path), read_only=read_only)
+    con.execute(f"SET memory_limit = {_quoted(memory_limit())}")
+    con.execute(f"SET temp_directory = {_quoted(str(temp_directory(path)))}")
+    return con
 
 
 def init_schemas(con: duckdb.DuckDBPyConnection) -> None:

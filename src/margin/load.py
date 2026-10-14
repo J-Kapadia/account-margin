@@ -14,7 +14,7 @@ from .books import months_between, read_books_id
 from .gen_config import ALLOCATION_FILE, POLICY_FILE, sha256_file
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, EXIT_USAGE, MarginError
 from .paths import ROOT
-from .warehouse import month_date
+from .warehouse import connect, month_date
 
 # table -> (csv file, SQL expression for the month of a row as YYYY-MM; None = not monthly).
 # The month of a FOCUS row is that of ChargePeriodStart; a ticket's is that of its closed_date,
@@ -54,7 +54,7 @@ def _columns(con: duckdb.DuckDBPyConnection, csv_path: Path) -> list[str]:
 
 def books_have_rows(books: Path, month: str) -> bool:
     """True if the books carry any invoice row for `month`; no writes."""
-    with duckdb.connect(":memory:") as con:
+    with connect() as con:
         n = con.execute(
             f"SELECT count(*) FROM {_read_sql(books / 'invoices.csv')} WHERE service_period = ?",
             [month],

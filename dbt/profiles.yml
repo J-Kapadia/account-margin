@@ -7,3 +7,7 @@ margin:
       type: duckdb
       path: "{{ env_var('MARGIN_WAREHOUSE_PATH') }}"
       threads: 1
+      # The same memory cap as every connection `margin` opens (default 2GB): DuckDB would
+      # otherwise take 80% of the machine's memory for this one run.
+      settings:
+        memory_limit: "{{ env_var('MARGIN_DUCKDB_MEMORY_LIMIT', '2GB') }}"
