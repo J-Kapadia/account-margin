@@ -19,19 +19,24 @@
 <p>Contribution profit is revenue, net of credits and discounts, less inference cost, cloud cost
 (direct plus allocated shared) and support cost. Support is part of cost of revenue. This is the
 project's own definition, not any company's.</p>
-<p>This is the walking-skeleton memo. It reports revenue only: the cost components, the allocation
-rules and the flags are not built yet, so no profit or margin is shown.</p>
 <p>All figures are synthetic. The books belong to a generated company, "Acme AI".</p>
 
 <h2>Headline</h2>
-<p>Total revenue for {{ month }}: <strong>{{ ('rollup/' ~ month ~ '/revenue') | num }}</strong>.</p>
+<p>Total revenue for {{ month }}: <strong>{{ ('rollup/' ~ month ~ '/revenue') | num }}</strong>.
+Total contribution profit: <strong>{{ ('rollup/' ~ month ~ '/contribution_profit') | num }}</strong>.</p>
 
-<h2>Revenue by account</h2>
+<h2>Contribution profit by account</h2>
 <table>
-<thead><tr><th>Account</th><th>Name</th><th class="n">Revenue</th></tr></thead>
+<thead><tr><th>Account</th><th>Name</th><th class="n">Revenue</th><th class="n">Inference</th>
+<th class="n">Cloud direct</th><th class="n">Cloud shared</th><th class="n">Support</th>
+<th class="n">Contribution profit</th><th class="n">Margin</th><th>Flag</th></tr></thead>
 <tbody>
 {% for a in accounts %}
-<tr><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td><td class="n">{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/revenue') | num }}</td></tr>
+<tr><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>{% for c in ('revenue', 'inference_cost', 'cloud_direct', 'cloud_shared', 'support_cost', 'contribution_profit') %}
+<td class="n">{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/' ~ c) | num }}</td>
+{% endfor %}
+<td class="n">{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/margin_pct') | num }}%</td>
+<td>{{ ('flag/' ~ month ~ '/' ~ a.account_id) | num }}</td></tr>
 {% endfor %}
 </tbody>
 </table>

@@ -147,11 +147,23 @@ def test_memo_numbers_all_resolve_through_explain(closed, tmp_path):
     try:
         for number_id, value in ids:
             node = explain_mod.explain(con, number_id)
-            assert str(node["value_cents"]) == value
+            expected = node["value_cents"] if node["value_cents"] is not None else node["value_text"]
+            assert str(expected) == value
             assert node["digest_verified"]
     finally:
         con.close()
     assert (out / "index.html").is_file()
+
+
+def test_memo_reports_what_is_built(closed, tmp_path):
+    out = tmp_path / "site"
+    margin("memo", "--month", "2026-03", "--out", str(out), *closed.warehouse_flags())
+    html = (out / "2026-03" / "index.html").read_text()
+    for built in ("rollup/2026-03/contribution_profit", "cp/2026-03/acct_0003/inference_cost",
+                  "cp/2026-03/acct_0003/cloud_shared", "cp/2026-03/acct_0003/margin_pct",
+                  "flag/2026-03/acct_0003"):
+        assert f'data-num-id="{built}"' in html
+    assert not re.search(r"walking-skeleton|not built yet", html, re.I)
 
 
 def test_memo_has_no_naked_numerals(closed, tmp_path):
@@ -177,9 +189,10 @@ def test_memo_refuses_an_unregistered_number():
 
 
 def test_memo_escapes_account_names():
-    registry = {"rollup/2026-03/revenue": {"value_cents": 1, "value_text": "1", "unit": "cents"}}
+    class AnyNumber(dict):
+        def get(self, key, default=None):
+            return {"value_cents": 1, "value_text": "1", "unit": "cents"}
+
     html = memo_mod.render("2026-03", [{"account_id": "a", "display_name": "<script>x</script>"}],
-                           {**registry, "cp/2026-03/a/revenue": registry["rollup/2026-03/revenue"],
-                            **{f"pnl/2026-03/{c}": registry["rollup/2026-03/revenue"]
-                               for c in ("4000", "4100", "4900")}})
+                           AnyNumber())
     assert "<script>x</script>" not in html and "&lt;script&gt;" in html
