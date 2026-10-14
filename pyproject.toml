@@ -25,6 +25,7 @@ dev = [
     "hypothesis>=6.100",
     "jsonschema>=4.20",
     "pytest>=8",
+    "pytest-xdist>=3.5",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -35,3 +36,6 @@ testpaths = ["tests"]
 # The cache stays under the ignored .venv/ so a test run leaves no untracked files.
 cache_dir = ".venv/.pytest_cache"
 markers = ["slow: runs the full books; excluded from the --fast subset"]
+# A crashing xdist worker is never respawned: a respawn loop outlives its controller and
+# grows without bound. The run fails on the first worker crash instead.
+addopts = "--max-worker-restart=0"
