@@ -1,4 +1,4 @@
-"""Books-directory conventions shared by the generator and the loader (plan §7.2)."""
+"""Books-directory conventions shared by the generator and the loader."""
 
 from __future__ import annotations
 

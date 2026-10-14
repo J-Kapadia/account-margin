@@ -1,4 +1,4 @@
-"""The loader (plan §6.2 step 2, §7.1): books into `raw.*`, every column VARCHAR.
+"""The loader: books into `raw.*`, every column VARCHAR.
 
 `_row_hash` and `_month` are computed once, here, in SQL. A month already
 loaded has its row hashes verified rather than reloaded, so loading is idempotent.
@@ -53,7 +53,7 @@ def _columns(con: duckdb.DuckDBPyConnection, csv_path: Path) -> list[str]:
 
 
 def books_have_rows(books: Path, month: str) -> bool:
-    """True if the books carry any invoice row for `month` (EC-03); no writes."""
+    """True if the books carry any invoice row for `month`; no writes."""
     with duckdb.connect(":memory:") as con:
         n = con.execute(
             f"SELECT count(*) FROM {_read_sql(books / 'invoices.csv')} WHERE service_period = ?",

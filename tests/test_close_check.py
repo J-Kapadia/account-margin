@@ -1,7 +1,7 @@
 """`close --check`: the answer-key comparison as the last step before a month is closed.
 
 Mismatches exit 5 (provenance gaps 6) and leave a month being closed `open`; on a month already
-closed the comparison is a read and changes no state. `truth/` absent exits 4 (EC-01).
+closed the comparison is a read and changes no state. `truth/` absent exits 4.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def test_check_does_not_change_the_result_hash(tmp_path):
     assert plain.json["result_hash"] == checked.json["result_hash"]
 
 
-# ------------------------------------------------------------------ EC-01
+# ------------------------------------------------------------------ truth/ absent
 
 
 def test_check_without_truth_exits_4_and_plain_close_does_not_need_it(tmp_path):

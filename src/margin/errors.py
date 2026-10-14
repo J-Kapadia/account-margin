@@ -1,4 +1,4 @@
-"""The error contract (plan §14.2): one exception carries the exit code."""
+"""The error contract: one exception carries the exit code."""
 
 from __future__ import annotations
 

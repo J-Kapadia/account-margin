@@ -16,7 +16,7 @@ from conftest import ROOT
 
 SCRIPT = ROOT / "scripts" / "scrub-check.sh"
 TERM = "zebrafish-quux"
-PRIVATE_BLOCK = "# Private: not in this repository\n/docs/research/\n/notes/\n/AGENTS.md\n"
+PRIVATE_BLOCK = "# Private: not in this repository\n/docs/research/\n/notes/\n/private-notes.md\n"
 
 
 def git(repo: Path, *args: str) -> str:
@@ -89,8 +89,8 @@ def test_denylist_without_terms_fails_closed(repo, tmp_path):
 
 def test_default_denylist_path_is_under_home(repo, tmp_path):
     home = tmp_path / "home"
-    (home / ".needle").mkdir(parents=True)
-    (home / ".needle" / "account-margin.denylist").write_text(TERM + "\n")
+    (home / ".config" / "account-margin").mkdir(parents=True)
+    (home / ".config" / "account-margin" / "denylist").write_text(TERM + "\n")
     (repo / "scratch.txt").write_text("one\n" + TERM.upper() + "\n")
     commit(repo)
     code, out = run(repo, home=home)
@@ -143,13 +143,13 @@ def test_tracked_research_file_fails_in_full_and_secrets_only(repo, denylist):
 def test_tracked_private_block_path_fails(repo, denylist):
     (repo / "notes").mkdir()
     (repo / "notes" / "x.md").write_text("private\n")
-    (repo / "AGENTS.md").write_text("private\n")
-    git(repo, "add", "-f", "notes/x.md", "AGENTS.md")
+    (repo / "private-notes.md").write_text("private\n")
+    git(repo, "add", "-f", "notes/x.md", "private-notes.md")
     git(repo, "commit", "-q", "-m", "docs: add notes")
     code, out = run(repo, denylist=denylist)
     assert code == 1
     assert "private path is tracked: notes" in out
-    assert "private path is tracked: AGENTS.md" in out
+    assert "private path is tracked: private-notes.md" in out
     assert "docs/research" not in out
 
 

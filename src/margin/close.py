@@ -141,8 +141,8 @@ def _close_one(
         if verdict["status"] == "fail":
             raise _fail_provenance(month, results, verdict)
         return outcome
-    # No row, or an `open` one: the records are written first and checked as stored (CTL-PROV,
-    # step 6b), then step 7 runs; a failure of either rolls the records back and leaves the month
+    # No row, or an `open` one: the records are written first and checked as stored (CTL-PROV),
+    # then the close controls run; a failure of either rolls the records back and leaves the month
     # open. Then it goes open -> closed with its records, in one transaction.
     verdict = None
     con.execute("BEGIN")

@@ -1,4 +1,4 @@
-"""The --json envelope of plan §14.2: every command's output validates against the schema."""
+"""The --json envelope: every command's output validates against the schema."""
 
 import json
 from pathlib import Path
@@ -48,10 +48,10 @@ def test_explain_and_memo_envelopes(closed, tmp_path):
     "args,code",
     [
         (["close", "--month", "2025-09"], 2),   # outside the window
-        (["close", "--month", "2026-03", "--check"], 4),  # truth/ absent (EC-01)
+        (["close", "--month", "2026-03", "--check"], 4),  # truth/ absent
         (["memo", "--month", "2026-02"], 4),    # not closed
         (["explain", "cp/2026-03/acct_9999/revenue"], 2),  # unknown id
-        (["gen", "--prices", "/nonexistent/model_prices.csv"], 4),  # no price list: gate G1
+        (["gen", "--prices", "/nonexistent/model_prices.csv"], 4),  # no price list
     ],
 )
 def test_failure_envelopes(closed, args, code):

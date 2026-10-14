@@ -39,7 +39,7 @@ COMPONENT_COLUMNS = {
 
 
 def require_truth(truth: Path, *, month: str | None = None) -> None:
-    """Exit 4 when the answer key is absent or incomplete (EC-01)."""
+    """Exit 4 when the answer key is absent or incomplete."""
     if not truth.is_dir():
         raise MarginError(EXIT_PRECONDITION, "truth/ not found: --check needs the answer key", month=month)
     missing = [name for name in TRUTH_FILES if not (truth / name).is_file()]

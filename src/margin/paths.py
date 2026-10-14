@@ -1,7 +1,8 @@
-"""Path resolution (plan §13.1): flag, then environment variable, then default.
+"""Path resolution: flag, then environment variable, then default.
 
-`--fixture NAME` is sugar for `--books` (with its truth directory) and, unless a
-warehouse is given, for the default warehouse `warehouse/<NAME>.duckdb`.
+`--fixture NAME` is sugar for `--books` (with its truth directory), for the fixture's
+price list and config directory where it has its own, and, unless a warehouse is given,
+for the default warehouse `warehouse/<NAME>.duckdb`.
 """
 
 from __future__ import annotations
@@ -19,6 +20,9 @@ DEFAULT_PRICES = "data/reference/model_prices.csv"
 # The committed `mini` books were generated against this price list, so the fixture
 # closes against it too, not against the author's real list.
 FIXTURE_PRICES = {"mini": "tests/fixtures/model_prices.csv"}
+# ...and these config files, whose hashes the committed manifest records.
+DEFAULT_CONFIG = "config"
+FIXTURE_CONFIG = {"mini": "tests/fixtures/config"}
 
 FIXTURE_BOOKS = {
     "small": ("data/books/small", "data/truth/small"),
@@ -35,7 +39,7 @@ class Paths:
     config: Path
     fixture: str | None
     truth_explicit: bool = False  # --truth or MARGIN_TRUTH was given
-    prices: Path = Path("data/reference/model_prices.csv")  # the pinned model price list
+    prices: Path = Path(DEFAULT_PRICES)  # the pinned model price list
 
     @property
     def lock(self) -> Path:
@@ -61,7 +65,7 @@ def resolve(
 
     default_warehouse = f"warehouse/{fixture}.duckdb" if fixture else "warehouse/margin.duckdb"
     warehouse_path = Path(warehouse or env.get("MARGIN_WAREHOUSE") or default_warehouse)
-    config_path = Path(config or env.get("MARGIN_CONFIG_DIR") or "config")
+    config_path = Path(config or env.get("MARGIN_CONFIG_DIR") or FIXTURE_CONFIG.get(fixture or "", DEFAULT_CONFIG))
     explicit = truth is not None or bool(env.get("MARGIN_TRUTH"))
     prices_path = Path(env.get("MARGIN_PRICES") or FIXTURE_PRICES.get(fixture or "", DEFAULT_PRICES))
     return Paths(books_path, truth_path, warehouse_path, config_path, fixture, explicit, prices_path)

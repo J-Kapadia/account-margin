@@ -1,6 +1,6 @@
-"""The generator (plan §7.2): seeded books, the hidden answer key and the manifest.
+"""The generator: seeded books, the hidden answer key and the manifest.
 
-`generate_small` is the Phase 0 `small` fixture: 3 accounts and 2026-03 only, no flags, no
+`generate_small` is the `small` fixture: 3 accounts and 2026-03 only, no flags, no
 config, no `truth/`. `generate` is the generator proper (the full books and the `mini` and
 `scenario` presets): it reads the config directory and a price list, plants firm flags and
 decoys, writes `truth/`, and records the config hashes in the manifest header. `verify`
@@ -241,7 +241,7 @@ def verify(*, books: Path, truth: Path, config_dir: Path, prices_path: Path) -> 
     prices = load_prices(prices_path)
     stale = []
     if config.policy.sha256 != header.get("policy_sha256") or config.allocation.sha256 != header.get("allocation_sha256"):
-        stale.append("config changed since the books were generated: regenerate")
+        stale.append(f"config changed since the books were generated (compared {config_dir}): regenerate")
     if prices.sha256 != header.get("prices_sha256"):
         stale.append("price list changed since the books were generated: regenerate")
     if stale:

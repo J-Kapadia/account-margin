@@ -1,4 +1,4 @@
-"""The generator's independent Python reference (plan §3, §4.1, §6.4).
+"""The generator's independent Python reference.
 
 This is the one place outside the dbt macros that applies the contribution formula and the
 largest-remainder apportionment. The generator's truth writer and the tests use it; `close`,
@@ -25,7 +25,7 @@ NANO_PER_CENT = 10_000_000  # 1 cent = 10^7 nano-USD
 Q4 = Decimal("0.0001")
 Q9 = Decimal("0.000000001")
 REASON_NONE = "NONE"
-# Ties between equal cents when a zero-revenue account is classified by cost (§4.1).
+# Ties between equal cents when a zero-revenue account is classified by cost.
 COST_TIE_ORDER = ("MODEL_MIX", "SUPPORT_LOAD", "DEDICATED_CLOUD")
 
 
@@ -35,7 +35,7 @@ COST_TIE_ORDER = ("MODEL_MIX", "SUPPORT_LOAD", "DEDICATED_CLOUD")
 def apportion(total_cents: int, weights: Mapping[str, int]) -> dict[str, int]:
     """Largest-remainder apportionment; ties go to the ascending key. Weights <= 0 get nothing.
 
-    A positive total with no eligible weight is an error: there is no fallback (EC-16).
+    A positive total with no eligible weight is an error: there is no fallback.
     """
     if total_cents < 0:
         raise ValueError("a pool cannot be negative")
@@ -61,7 +61,7 @@ def contribution_cents(revenue: int, inference: int, cloud_direct: int, cloud_sh
 
 
 def below(profit_cents: int, revenue_cents: int, floor_pct: Decimal | int) -> bool:
-    """The flag predicate of §4.1: strict, all integers, never a rounded percentage."""
+    """The flag predicate: strict, all integers, never a rounded percentage."""
     return Fraction(profit_cents * 100) < Fraction(Decimal(floor_pct)) * revenue_cents
 
 
@@ -141,7 +141,7 @@ class Components:
 
 
 def shared_weights(rule: str, accts: Mapping[str, AcctMonth]) -> dict[str, int]:
-    """The apportionment weight of each account for a shared-cloud rule (§6.4 table)."""
+    """The apportionment weight of each account for a shared-cloud rule."""
     if rule == "by_tokens":
         return {k: a.total_tokens for k, a in accts.items()}
     if rule == "by_revenue":
@@ -190,7 +190,7 @@ def month_components(
 
 
 def list_price_revenue(fee_cents: int, usage_cents: int, discount: Decimal) -> Decimal:
-    """Platform fee plus usage restored to list price; credits are not added back (§4.1)."""
+    """Platform fee plus usage restored to list price; credits are not added back."""
     return Decimal(fee_cents) + Decimal(usage_cents) / (1 - discount)
 
 

@@ -5,7 +5,7 @@
 #   scripts/scrub-check.sh --secrets-only [DIR] secret patterns in a directory tree
 #
 # Full mode (default) needs a git repository and the denylist: MARGIN_DENYLIST_PATH, default
-# $HOME/.needle/account-margin.denylist, one case-insensitive literal term per line (blank
+# $HOME/.config/account-margin/denylist, one case-insensitive literal term per line (blank
 # lines and lines starting with '#' ignored). It scans every tracked file and every commit
 # message for denylist terms and for the patterns in scripts/secret-patterns.txt, and fails
 # if any path in .gitignore's Private block is tracked.
@@ -64,7 +64,7 @@ if [ ! -s "$tmp/patterns" ]; then
 fi
 
 if [ "$mode" = full ]; then
-  deny=${MARGIN_DENYLIST_PATH:-$HOME/.needle/account-margin.denylist}
+  deny=${MARGIN_DENYLIST_PATH:-$HOME/.config/account-margin/denylist}
   if [ -f "$deny" ]; then terms_only "$deny" > "$tmp/terms"; else : > "$tmp/terms"; fi
   if [ ! -s "$tmp/terms" ]; then
     echo "scrub-check: denylist missing: failing closed" >&2

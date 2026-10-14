@@ -48,7 +48,7 @@ def test_the_committed_fixture_signoff_passes_the_gate(monkeypatch):
     assert signed.signer == json.loads(committed.read_text())["signer"]
 
 
-def test_no_sign_off_file_exits_4_with_the_scenario_message_and_writes_nothing(tmp_path):
+def test_no_sign_off_file_exits_4_with_the_sign_off_message_and_writes_nothing(tmp_path):
     empty, warehouse = tmp_path / "empty", tmp_path / "w.duckdb"
     empty.mkdir()
     result = close_mini(warehouse, "2026-03", env={"MARGIN_SIGNOFF_DIR": str(empty)})

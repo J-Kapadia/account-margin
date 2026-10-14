@@ -1,5 +1,5 @@
 # The warehouse path comes from `margin`, which sets MARGIN_WAREHOUSE_PATH for the
-# dbt subprocess. One thread keeps every run deterministic (plan §6.3).
+# dbt subprocess. One thread keeps every run deterministic.
 margin:
   target: dev
   outputs:

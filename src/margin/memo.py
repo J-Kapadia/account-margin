@@ -1,4 +1,4 @@
-"""`memo` (plan §6.1, §14.3): a Jinja2 page whose every number goes through `num(id)`.
+"""`memo`: a Jinja2 page whose every number goes through `num(id)`.
 
 The memo is a reader: it opens the warehouse read-only and writes nothing to it.
 `num` renders an ID found in `prov.records` as a span with `data-num-id` and the

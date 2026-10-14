@@ -1,4 +1,4 @@
-"""Phase 0 walking skeleton: gen -> load -> dbt -> control -> provenance -> explain -> memo."""
+"""Walking skeleton: gen -> load -> dbt -> control -> provenance -> explain -> memo."""
 
 import re
 import shutil
@@ -26,11 +26,11 @@ def test_gen_is_deterministic(tmp_path):
 
 
 def test_gen_without_a_preset_is_the_full_books_and_needs_the_prices(tmp_path):
-    # No --fixture means the full books, which need the author's price list (gate G1).
+    # No --fixture means the full books, which need a price list.
     result = margin("gen", "--json", "--out", str(tmp_path / "books"),
                     "--prices", str(tmp_path / "missing.csv"))
     assert result.code == 4
-    assert "G1" in result.json["message"]
+    assert "--prices" in result.json["message"]
 
 
 def test_books_tie_to_the_ledger_in_integer_cents(tmp_path):
@@ -56,7 +56,7 @@ def test_close_is_idempotent(closed):
 
 
 def test_close_does_not_need_truth(closed, tmp_path):
-    # The small fixture writes no truth/ at all, and close still succeeds (EC-01).
+    # The small fixture writes no truth/ at all, and close still succeeds.
     assert not (closed.books.parent / "truth").exists()
     assert margin("close", "--month", "2026-03", "--check", *closed.flags()).code == 4
 
@@ -95,7 +95,7 @@ def test_a_ledger_slip_fails_the_named_control_and_leaves_the_month_open(tmp_pat
     assert "pnl/2026-03/4100" in failed["detail"][0]
     assert re.search(r"rows [0-9a-f]{32}(,[0-9a-f]{32})+", failed["detail"][0])
 
-    # The month never closed: readers refuse it (plan §6.5).
+    # The month never closed: readers refuse it.
     assert margin("memo", "--month", "2026-03", "--out", str(tmp_path / "s"), *ws.flags()).code == 4
     assert margin("explain", "cp/2026-03/acct_0001/revenue", *ws.flags()).code == 4
 

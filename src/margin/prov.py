@@ -1,4 +1,4 @@
-"""Provenance records (plan §6.4, §7.1): one per mart number, with a Merkle-shaped digest.
+"""Provenance records: one per mart number, with a Merkle-shaped digest.
 
 A leaf number hashes the raw source rows that can change its value; a composite
 number hashes its direct children's (number_id, input_digest) pairs. The record
@@ -43,7 +43,7 @@ CONFIG_NAMES = ("allocation", "policy")
 # The column that names a row of a reference file in `ref/<file>/<key>`; the first column otherwise.
 REF_KEYS = {"model_prices": "model", "support_rates": "tier"}
 
-# The closed ID grammar (plan §7.1): the number registry is `prov.records` plus this set.
+# The closed ID grammar: the number registry is `prov.records` plus this set.
 _MONTH = r"\d{4}-(?:0[1-9]|1[0-2])"
 _ACCOUNT = r"[A-Za-z0-9_]+"
 _ROLLUPS = "|".join((*ROLLUP_SUMS, *ROLLUP_COUNTS, *ROLLUP_STATS)) + "|accounts_status_change_[a-z_]+"

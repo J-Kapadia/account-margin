@@ -1,4 +1,4 @@
-"""DuckDB probe (plan §6.3): the three facts the locking design rests on.
+"""DuckDB probe: the three facts the locking design rests on.
 
 Run directly (`python tests/probes/duckdb_probe.py`) or through tests/test_probe.py.
 """

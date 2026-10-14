@@ -34,4 +34,4 @@ packages = ["src/margin"]
 testpaths = ["tests"]
 # The cache stays under the ignored .venv/ so a test run leaves no untracked files.
 cache_dir = ".venv/.pytest_cache"
-markers = ["slow: runs the full books; excluded from the per-bead --fast subset"]
+markers = ["slow: runs the full books; excluded from the --fast subset"]

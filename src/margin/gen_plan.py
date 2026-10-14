@@ -1,7 +1,7 @@
-"""Who the accounts are and what each is planted to be in each month (plan §4.1, §7.2).
+"""Who the accounts are and what each is planted to be in each month.
 
 The plan is a table of roles. A role says what the books must make of an account-month; the
-generator then tunes costs until the §4.1 predicate, evaluated by the Python reference, agrees.
+generator then tunes costs until the flag predicate, evaluated by the Python reference, agrees.
 Nothing here decides a flag: the planted set that reaches `truth/` is always derived.
 
 Randomness comes only from `random.Random` seeded per entity and uses basic arithmetic, so the

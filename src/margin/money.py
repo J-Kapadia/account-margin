@@ -1,4 +1,4 @@
-"""Integer-cent helpers. Money is never a float (plan §3)."""
+"""Integer-cent helpers. Money is never a float."""
 
 from __future__ import annotations
 

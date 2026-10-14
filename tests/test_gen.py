@@ -1,4 +1,4 @@
-"""Phase 2: the generator, its answer key and the manifest that binds them to the config.
+"""The generator, its answer key and the manifest that binds them to the config.
 
 The full books are generated once per session from the fixture price list (never real prices).
 Every check re-derives its answer from the written CSV files with the Python reference, so the
@@ -87,18 +87,18 @@ def policy() -> gen_config.Policy:
 # ------------------------------------------------------------------ exit codes and inputs
 
 
-def test_gen_exits_4_naming_gate_g1_without_a_price_list(tmp_path):
+def test_gen_exits_4_naming_prices_without_a_price_list(tmp_path):
     result = run_gen(tmp_path, prices=tmp_path / "model_prices.csv")
     assert result.code == 4
-    assert "G1" in result.json["message"]
+    assert "--prices" in result.json["message"]
     assert not (tmp_path / "books").exists()
 
 
-def test_bare_gen_without_the_authors_prices_exits_4_naming_g1():
+def test_bare_gen_without_the_authors_prices_exits_4_naming_prices():
     if (ROOT / "data" / "reference" / "model_prices.csv").exists():
         pytest.skip("the author's price list exists: a bare gen would write the real books")
     result = margin("gen", "--json")
-    assert result.code == 4 and "G1" in result.json["message"]
+    assert result.code == 4 and "--prices" in result.json["message"]
 
 
 def test_gen_exits_2_without_a_policy_file(tmp_path):
@@ -207,6 +207,12 @@ def test_verify_passes_on_untouched_books(mini):
     assert result.json["status"] == "ok"
 
 
+def test_fixture_mini_verifies_with_no_other_flags():
+    result = margin("gen", "--json", "--fixture", "mini", "--verify")
+    assert result.code == 0, result.stderr
+    assert result.json["status"] == "ok"
+
+
 def test_editing_floor_pct_fails_verify(mini, tmp_path):
     config = tmp_path / "config"
     shutil.copytree(CONFIG, config)
@@ -217,7 +223,9 @@ def test_editing_floor_pct_fails_verify(mini, tmp_path):
     assert result.code == 3
     (failed,) = result.json["failed_controls"]
     assert failed["id"] == "CHK-GEN-VERIFY"
-    assert result.json["message"] == "config changed since the books were generated: regenerate"
+    assert result.json["message"] == (
+        f"config changed since the books were generated (compared {config}): regenerate"
+    )
 
 
 def test_editing_the_allocation_config_fails_verify(mini, tmp_path):

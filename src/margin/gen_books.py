@@ -1,4 +1,4 @@
-"""The books generator proper (plan §4.1, §6.4, §7.2): accounts, invoices, usage, cloud, support, ledger.
+"""The books generator proper: accounts, invoices, usage, cloud, support, ledger.
 
 Each month is built in three steps. First every account gets a volume of usage, a platform fee
 and a role-shaped mix of models. Then the shared-cloud pool and the three allocations are
@@ -6,7 +6,7 @@ evaluated with the Python reference and the free costs (direct cloud, support mi
 fee, decoy size) are tuned until every account-month sits where its role needs it, relative to
 the floor and the guard bands. Last the books are written and the whole thing is recomputed from
 the written files by the same reference: the truth is that recomputation, and the planted set is
-derived by evaluating the §4.1 predicate, never listed by hand.
+derived by evaluating the flag predicate, never listed by hand.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Run dbt as a subprocess (plan §6.3): `margin` holds no DuckDB connection meanwhile."""
+"""Run dbt as a subprocess: `margin` holds no DuckDB connection meanwhile."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def build(warehouse: Path, config_dir: Path) -> None:
     cmd = [
         sys.executable, "-c", _DBT_MAIN, "build",
         "--project-dir", str(DBT_DIR), "--profiles-dir", str(DBT_DIR),
-        "--exclude", "tag:scenario",  # scenario models never run in close (plan §7.1)
+        "--exclude", "tag:scenario",  # scenario models never run in close
         "--vars", json.dumps(dbt_vars(config_dir)),
         "--no-use-colors", "--quiet",
     ]

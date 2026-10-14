@@ -1,4 +1,4 @@
-"""`explain` (plan §6.1): print a number's provenance chain down to its source rows.
+"""`explain`: print a number's provenance chain down to its source rows.
 
 Digests are re-derived on the way: a leaf from the rows its `source_query` selects, a
 composite from its children's stored digests. A mismatch exits 6. Every family of the closed
@@ -25,7 +25,7 @@ def _record(con: duckdb.DuckDBPyConnection, number_id: str) -> dict | None:
 
 
 def require_closed(con: duckdb.DuckDBPyConnection, month: str) -> None:
-    """Read commands accept a `closed` or `locked` month; anything else exits 4 (plan §6.5)."""
+    """Read commands accept a `closed` or `locked` month; anything else exits 4."""
     row = con.execute(
         "SELECT status FROM state.close_state WHERE month = ?", [f"{month}-01"]
     ).fetchone()

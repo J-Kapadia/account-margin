@@ -1,4 +1,4 @@
-"""The two-implementations rule (plan §3): the close path never imports the generator's reference.
+"""The two-implementations rule: the close path never imports the generator's reference.
 
 `truth_reference.py` applies the contribution formula and the apportionment independently of the
 dbt macros, so `close`, `memo` and `agreement` must not reach it, directly or through another

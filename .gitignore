@@ -25,14 +25,6 @@ __pycache__/
 .DS_Store
 .claude/settings.local.json
 
-# Private: versioned in .private.git, never in this repository
-/.private.git/
-/docs/plan/
-/docs/notes/
+# Private: not in this repository
 /docs/research/
-/docs/build-log/
 /notes/
-/AGENTS.md
-/CLAUDE.md
-/.needle.yaml
-/.beads/

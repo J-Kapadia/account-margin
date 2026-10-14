@@ -1,9 +1,9 @@
-"""Generator inputs (plan §4.1, §7.1): the two config files and the model price list.
+"""Generator inputs: the two config files and the model price list.
 
 The generator reads its floor, rules, drivers and guard bands from the config directory
 the way `close` does, and writes the SHA-256 of both files into the manifest header.
 A missing policy file is a usage error (exit 2); a missing price list means the author
-has not yet sourced the real prices (gate G1, exit 4).
+has not supplied a price list (exit 4).
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ POLICY_FILE = "policy.yaml"
 ALLOCATION_FILE = "allocation.yaml"
 KNOWN_RULES = ("by_tokens", "by_revenue", "equal_usage")
 DRIVER_CODES = ("DEEP_DISCOUNT", "MODEL_MIX", "SUPPORT_LOAD", "DEDICATED_CLOUD")
-DEFAULT_PRICES = Path("data/reference/model_prices.csv")
 NANO_PER_USD = 1_000_000_000
 
 
@@ -163,8 +162,7 @@ def load_prices(path: Path) -> Prices:
     if not path.is_file():
         raise MarginError(
             EXIT_PRECONDITION,
-            f"{path} not found: gate G1 (the author sources and dates the real list prices) "
-            "has not passed; pass --prices to use a fixture price list",
+            f"{path} not found: no model price list; pass --prices <file> to use a fixture price list",
         )
     rows: list[Price] = []
     with path.open(encoding="utf-8", newline="") as fh:

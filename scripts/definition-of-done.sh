@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Definition of Done: the commands that must pass before a bead may close.
-# NEEDLE runs this on a clean `git archive HEAD` extraction (committed state only).
+# Definition of Done: the commands that must pass before a unit of work counts as done.
+# Meant to run on a clean `git archive HEAD` extraction (committed state only), not the working tree.
 #
 #   scripts/definition-of-done.sh [--fast]
 #
@@ -32,7 +32,7 @@ scripts/scrub-check.sh --secrets-only
 
 echo "definition-of-done: hygiene and planning checks passed"
 
-# Bootstrap: NEEDLE runs this on a bare `git archive` extraction where nothing is installed.
+# Bootstrap: this runs on a bare `git archive` extraction where nothing is installed.
 UV_PIN="0.13.0"
 export PATH="$HOME/.local/bin:$PATH"
 if ! command -v uv >/dev/null 2>&1; then

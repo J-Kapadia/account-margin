@@ -1,7 +1,7 @@
-"""The `margin` command line (plan §14.1): gen, close, explain, memo.
+"""The `margin` command line: gen, close, explain, memo.
 
 Every command takes the path flags and `--json`; an error becomes a failure
-envelope and the exit code of plan §14.2.
+envelope and the exit code of the error contract (see errors.py).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from .warehouse import connect
 
 
 def common_options(fn):
-    """The global flags of plan §14.1, accepted by every command."""
+    """The global flags, accepted by every command."""
     options = [
         click.option("--books", help="Books directory (MARGIN_BOOKS)."),
         click.option("--truth", help="Truth directory (MARGIN_TRUTH)."),
@@ -83,12 +83,12 @@ def main() -> None:
 @click.option("--accounts", type=click.IntRange(min=1), default=None, help="Account count (300).")
 @click.option("--months", type=click.IntRange(min=1), default=None, help="Month count (12).")
 @click.option("--first-month", default=None, help="First month, YYYY-MM (2025-10).")
-@click.option("--prices", "prices_path", type=click.Path(path_type=Path), default=gen_config.DEFAULT_PRICES,
-              show_default=True, help="Model price list (the author's, or a fixture).")
+@click.option("--prices", "prices_path", type=click.Path(path_type=Path), default=None,
+              help="Model price list (MARGIN_PRICES; the fixture's with --fixture mini).")
 @click.option("--verify", is_flag=True, help="Check the manifest, the config hashes and a regeneration.")
 @common_options
 def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months: int | None,
-        first_month: str | None, prices_path: Path, verify: bool):
+        first_month: str | None, prices_path: Path | None, verify: bool):
     """Generate the books and the answer key, or verify them against the manifest."""
     books = out or paths.books
     truth = paths.truth if out is None or paths.truth_explicit else out.parent / "truth"
@@ -108,6 +108,7 @@ def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months:
     if first_month:
         first_month = parse_month(first_month)
     config_dir = paths.config
+    prices_path = prices_path or paths.prices
     if verify:
         with warehouse_lock(paths.lock, exclusive=False):
             summary = gen_mod.verify(books=books, truth=truth, config_dir=config_dir, prices_path=prices_path)

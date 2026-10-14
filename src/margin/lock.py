@@ -1,4 +1,4 @@
-"""Advisory warehouse lock (plan §6.3).
+"""Advisory warehouse lock.
 
 A non-blocking `flock` on `<warehouse>.lock`. The kernel drops it when the
 holder dies, so a killed run needs no cleanup; the file's existence means

@@ -1,4 +1,4 @@
-"""The versioned JSON envelope (plan §14.2) and the human view of it."""
+"""The versioned JSON envelope and the human view of it."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Run `controls/CTL-*.sql` (plan §6.1). Each file returns the violating rows of a month."""
+"""Run `controls/CTL-*.sql`. Each file returns the violating rows of a month."""
 
 from __future__ import annotations
 
