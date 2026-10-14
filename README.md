@@ -42,7 +42,7 @@ Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
 ## Full run (planned for v0.1; does not run yet)
 
-This is the target sequence, not what works today. It needs `data/reference/model_prices.csv` (the published list prices), the production sign-offs and the unbuilt commands in the table below. Today `margin gen --seed 20261013 --out data/books` exits 4 because the price file is absent. Use the `mini` fixture commands under Status.
+This is the target sequence, not what works today. It needs the published list-price file, `data/reference/model_prices.csv`, the production sign-offs and the unbuilt commands in the table below. Today `margin gen --seed 20261013 --out data/books` exits 4 because the price file is absent. Use the `mini` fixture commands under Status.
 
 ```bash
 uv sync --frozen
