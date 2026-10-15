@@ -44,9 +44,9 @@ def test_books_tie_to_the_ledger_in_integer_cents(tmp_path):
     assert sum(int(r["amount_cents"]) for r in invoices) == TOTAL
 
 
-def test_close_is_idempotent(closed):
-    first = closed.close().json
-    second = closed.close().json
+def test_close_is_idempotent(closed_copy):
+    first = closed_copy.close().json
+    second = closed_copy.close().json
     assert first["result_hash"] == second["result_hash"]
     assert first["controls"] == [
         {"id": c, "status": "pass", "violating_rows": 0}
@@ -55,24 +55,24 @@ def test_close_is_idempotent(closed):
     ]
 
 
-def test_close_does_not_need_truth(closed, tmp_path):
+def test_close_does_not_need_truth(closed_copy, tmp_path):
     # The small fixture writes no truth/ at all, and close still succeeds.
-    assert not (closed.books.parent / "truth").exists()
-    assert margin("close", "--month", "2026-03", "--check", *closed.flags()).code == 4
+    assert not (closed_copy.books.parent / "truth").exists()
+    assert margin("close", "--month", "2026-03", "--check", *closed_copy.flags()).code == 4
 
 
-def test_month_outside_the_window_exits_2_naming_the_range(closed):
-    result = closed.close("2025-09")
+def test_month_outside_the_window_exits_2_naming_the_range(closed_copy):
+    result = closed_copy.close("2025-09")
     assert result.code == 2
     assert "2026-03..2026-03" in result.json["message"]
-    assert closed.close("2026-3").code == 2
+    assert closed_copy.close("2026-3").code == 2
 
 
-def test_a_warehouse_is_tied_to_its_books(closed, tmp_path):
-    other = Workspace(tmp_path)
+def test_a_warehouse_is_tied_to_its_books(closed_copy, tmp_path):
+    other = Workspace(tmp_path / "other")
     assert other.gen("--seed", "7").code == 0
     result = margin("close", "--month", "2026-03", "--json", "--books", str(other.books),
-                    "--warehouse", str(closed.warehouse), "--config", str(MINI_CONFIG))
+                    "--warehouse", str(closed_copy.warehouse), "--config", str(MINI_CONFIG))
     assert result.code == 2
     assert result.json["message"] == "warehouse holds different books: use --warehouse or delete it"
 

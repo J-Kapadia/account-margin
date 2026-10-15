@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import fcntl
 import functools
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -54,6 +56,23 @@ def _cap_duckdb_connections():
         duckdb.connect = _real_connect
 
 
+def shared_dir(tmp_path_factory, name: str, build) -> Path:
+    """A directory `build(directory)` filled once for the whole run, however many xdist workers
+    there are: the first caller builds it under a file lock, the others wait and reuse it. It is
+    read-only for the tests; one that changes it takes a copy first."""
+    base = tmp_path_factory.getbasetemp()
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        base = base.parent  # the temp root every worker of this run shares
+    directory, done = base / f"shared-{name}", base / f"shared-{name}.done"
+    with open(base / f"shared-{name}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not done.exists():
+            directory.mkdir()
+            build(directory)
+            done.touch()
+    return directory
+
+
 @dataclass
 class Result:
     code: int
@@ -65,8 +84,68 @@ class Result:
         return json.loads(self.stdout)
 
 
+# Where a `margin` run that names no path of its own reads and writes: a directory private to the
+# running test, never the checkout's `warehouse/` or `data/`, so parallel workers cannot collide on
+# the default warehouse lock or on the default books. Session fixtures run before any test has set
+# one, so they fall back to a directory private to the process.
+_default_root: Path | None = None
+_process_default_root: Path | None = None
+
+
+def default_paths() -> dict[str, str]:
+    global _process_default_root
+    root = _default_root
+    if root is None:
+        if _process_default_root is None:
+            _process_default_root = Path(tempfile.mkdtemp(prefix="margin-defaults-"))
+        root = _process_default_root
+    # dbt's target and log directories are private to the process too: runs on one worker are
+    # serial, so they reuse the parsed project, and runs on different workers never share a file.
+    if _process_default_root is None:
+        _process_default_root = Path(tempfile.mkdtemp(prefix="margin-defaults-"))
+    return {
+        "MARGIN_WAREHOUSE": str(root / "warehouse" / "margin.duckdb"),
+        "MARGIN_BOOKS": str(root / "data" / "books"),
+        "DBT_TARGET_PATH": str(_process_default_root / "dbt-target"),
+        "DBT_LOG_PATH": str(_process_default_root / "dbt-logs"),
+    }
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_cmdline_main(config):
+    """Run in parallel by default, whenever the xdist plugin is loaded (`-n 0` still runs serially,
+    `-p no:xdist` and `--collect-only` are untouched). A crashing worker is never respawned: a
+    respawn loop outlives its controller and grows without bound, so the run fails on the first
+    crash instead. Set here rather than in `addopts`, which would break `-p no:xdist`."""
+    opts = config.option
+    if hasattr(opts, "numprocesses") and opts.numprocesses is None and not opts.collectonly \
+            and "PYTEST_XDIST_WORKER" not in os.environ:
+        opts.numprocesses = min(12, os.cpu_count() or 1)
+        opts.dist = "load"
+        opts.maxworkerrestart = 0
+
+
+def pytest_collection_modifyitems(items):
+    """A test that needs the full-size books is slow: the fast tier runs on the committed `mini` and
+    `small` books only."""
+    for item in items:
+        if "full" in item.fixturenames:
+            item.add_marker(pytest.mark.slow)
+
+
+@pytest.fixture(autouse=True)
+def _private_default_paths(tmp_path_factory):
+    global _default_root
+    _default_root = tmp_path_factory.mktemp("defaults")
+    try:
+        yield
+    finally:
+        _default_root = None
+
+
 def margin(*args: str, cwd: Path = ROOT, env: dict | None = None) -> Result:
     full_env = {k: v for k, v in os.environ.items() if not k.startswith("MARGIN_")}
+    full_env.update(default_paths())
     # `close` is gated on a sign-off: unless a test says otherwise, the fixture config is the one signed.
     full_env["MARGIN_SIGNOFF_DIR"] = str(FIXTURE_SIGNOFF)
     full_env.update(env or {})
@@ -106,11 +185,13 @@ class Workspace:
 @pytest.fixture(scope="session")
 def closed(tmp_path_factory) -> Workspace:
     """`small` books generated and 2026-03 closed once, shared by the read-only tests."""
-    ws = Workspace(tmp_path_factory.mktemp("closed"))
-    assert ws.gen().code == 0
-    result = ws.close()
-    assert result.code == 0, result.stderr
-    return ws
+    def build(directory: Path) -> None:
+        ws = Workspace(directory)
+        assert ws.gen().code == 0
+        result = ws.close()
+        assert result.code == 0, result.stderr
+
+    return Workspace(shared_dir(tmp_path_factory, "closed", build))
 
 
 @pytest.fixture
@@ -154,7 +235,8 @@ def build_mini_warehouse(books: Path, warehouse: Path, config_dir: Path = MINI_C
 @pytest.fixture(scope="session")
 def mini_warehouse(tmp_path_factory) -> Path:
     """The `mini` books built once with the fixture config; read-only for the tests."""
-    return build_mini_warehouse(MINI_BOOKS, tmp_path_factory.mktemp("mini") / "mini.duckdb")
+    directory = shared_dir(tmp_path_factory, "mini", lambda d: build_mini_warehouse(MINI_BOOKS, d / "mini.duckdb"))
+    return directory / "mini.duckdb"
 
 
 @pytest.fixture
@@ -178,10 +260,11 @@ def close_mini(warehouse: Path, month: str = "2026-04", *extra: str, env: dict |
 @pytest.fixture(scope="session")
 def mini_closed(tmp_path_factory) -> Path:
     """A warehouse with every month of `mini` closed by the CLI; read-only for the tests."""
-    warehouse = tmp_path_factory.mktemp("mini_closed") / "w.duckdb"
-    result = close_mini(warehouse)
-    assert result.code == 0, result.stderr
-    return warehouse
+    def build(directory: Path) -> None:
+        result = close_mini(directory / "w.duckdb")
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "mini_closed", build) / "w.duckdb"
 
 
 @pytest.fixture

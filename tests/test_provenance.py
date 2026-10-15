@@ -125,6 +125,7 @@ def test_a_non_signed_rule_reads_its_own_weight_rows(con):
     assert not {t for t, _ in signed_shared} & {"raw.invoices"}
 
 
+@pytest.mark.slow
 def test_result_hash_is_equal_across_two_closes_and_ignores_the_commit(mini_closed, tmp_path):
     second = tmp_path / "second.duckdb"
     result = close_mini(second, env={"MARGIN_GIT_SHA": "0" * 40, "MARGIN_PRODUCER_KIND": "agent"})

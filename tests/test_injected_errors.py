@@ -9,13 +9,12 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from conftest import MINI_BOOKS, MINI_CONFIG, MINI_PRICES, margin
+from conftest import MINI_BOOKS, MINI_CONFIG, MINI_PRICES, Result, margin, shared_dir
 from margin.inject import ERRORS
 
 MONTH = "2026-03"
@@ -60,23 +59,34 @@ def clean_books(root: Path) -> Path:
     return books
 
 
-@pytest.fixture(scope="module")
-def closes(tmp_path_factory) -> dict:
-    """Every copy (the five injected and the clean books) closed once, in its own warehouse."""
-    def run(name: str) -> dict:
-        root = tmp_path_factory.mktemp(name)
-        if name == "clean":
-            books, target = clean_books(root), None
-        else:
-            injected = inject(name, root / "books")
-            assert injected.code == 0, injected.stderr
-            books, target = root / "books", injected.json["target"]
-        warehouse = root / "w.duckdb"
-        return {"result": close(books, warehouse), "target": target, "warehouse": warehouse}
+class Closes:
+    """Each copy (the five injected and the clean books) closed once for the whole run, in its own
+    warehouse, the first time a test asks for it: workers share the closes rather than repeat them."""
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        names = [*ERRORS, "clean"]
-        return dict(zip(names, pool.map(run, names)))
+    def __init__(self, tmp_path_factory):
+        self.tmp_path_factory = tmp_path_factory
+
+    def __getitem__(self, name: str) -> dict:
+        def build(root: Path) -> None:
+            if name == "clean":
+                books, target = clean_books(root), None
+            else:
+                injected = inject(name, root / "books")
+                assert injected.code == 0, injected.stderr
+                books, target = root / "books", injected.json["target"]
+            result = close(books, root / "w.duckdb")
+            (root / "close.json").write_text(json.dumps(
+                {"code": result.code, "stdout": result.stdout, "stderr": result.stderr, "target": target}))
+
+        root = shared_dir(self.tmp_path_factory, f"inject-{name}", build)
+        saved = json.loads((root / "close.json").read_text())
+        return {"result": Result(saved["code"], saved["stdout"], saved["stderr"]), "target": saved["target"],
+                "warehouse": root / "w.duckdb"}
+
+
+@pytest.fixture(scope="module")
+def closes(tmp_path_factory) -> Closes:
+    return Closes(tmp_path_factory)
 
 
 def expected_number_id(error: str, target: dict) -> str:
@@ -97,7 +107,12 @@ def row_hash(warehouse: Path, error: str, key: str) -> str:
     return found[0]
 
 
-@pytest.mark.parametrize("error", ERRORS)
+# The other three errors close in the full tier; the first two keep a close-failure check in the fast one.
+SLOW_ERRORS = ("cutoff_slip", "alloc_twice", "sign_flip")
+
+
+@pytest.mark.parametrize(
+    "error", [pytest.param(e, marks=pytest.mark.slow) if e in SLOW_ERRORS else e for e in ERRORS])
 def test_the_injected_error_fails_the_close_naming_its_control(error, closes):
     result, target, warehouse = closes[error].values()
 

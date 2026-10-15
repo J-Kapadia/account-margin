@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st
 
-from conftest import ROOT, margin
+from conftest import ROOT, margin, shared_dir
 from margin import gen_config, gen_plan
 from margin import truth_reference as ref
 
@@ -57,26 +57,29 @@ def points(c: ref.Components) -> list[Fraction]:
 
 @pytest.fixture(scope="session")
 def full(tmp_path_factory) -> Path:
-    root = tmp_path_factory.mktemp("full")
-    result = run_gen(root)
-    assert result.code == 0, result.stderr
-    return root
+    def build(root: Path) -> None:
+        result = run_gen(root)
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "gen-full", build)
 
 
 @pytest.fixture(scope="session")
 def mini(tmp_path_factory) -> Path:
-    root = tmp_path_factory.mktemp("mini")
-    result = run_gen(root, fixture="mini")
-    assert result.code == 0, result.stderr
-    return root
+    def build(root: Path) -> None:
+        result = run_gen(root, fixture="mini")
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "gen-mini", build)
 
 
 @pytest.fixture(scope="session")
 def scenario(tmp_path_factory) -> Path:
-    root = tmp_path_factory.mktemp("scenario")
-    result = run_gen(root, fixture="scenario")
-    assert result.code == 0, result.stderr
-    return root
+    def build(root: Path) -> None:
+        result = run_gen(root, fixture="scenario")
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "gen-scenario", build)
 
 
 @pytest.fixture(scope="session")

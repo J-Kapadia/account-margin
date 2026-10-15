@@ -25,8 +25,8 @@ def test_gen_envelope(tmp_path):
     assert validate(result.json)["status"] == "ok"
 
 
-def test_close_envelope(closed):
-    env = validate(margin("close", "--month", "2026-03", "--json", *closed.flags()).json)
+def test_close_envelope(closed_copy):
+    env = validate(margin("close", "--month", "2026-03", "--json", *closed_copy.flags()).json)
     assert env["controls"] == [
         {"id": c, "status": "pass", "violating_rows": 0}
         for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-CUTOFF", "CTL-PRICE-PIN", "CTL-REV-DUP", "CTL-SIGN",
@@ -54,8 +54,8 @@ def test_explain_and_memo_envelopes(closed, tmp_path):
         (["gen", "--prices", "/nonexistent/model_prices.csv"], 4),  # no price list
     ],
 )
-def test_failure_envelopes(closed, args, code):
-    flags = closed.warehouse_flags() if args[0] in ("memo", "explain") else closed.flags()
+def test_failure_envelopes(closed_copy, args, code):
+    flags = closed_copy.warehouse_flags() if args[0] in ("memo", "explain") else closed_copy.flags()
     result = margin(*args, "--json", *flags)
     assert result.code == code, result.stderr
     env = validate(result.json)

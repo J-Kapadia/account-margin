@@ -174,6 +174,7 @@ def test_the_writer_refuses_an_unregistered_id(tmp_path):
 # ------------------------------------------------------------------ tampering exits 6
 
 
+@pytest.mark.slow
 def test_a_tampered_leaf_digest_exits_6_and_names_it(mini_closed_copy):
     before = snapshot(mini_closed_copy)
     sql(mini_closed_copy, "UPDATE prov.records SET input_digest = repeat('0', 64) WHERE number_id = ?", LEAF)
@@ -187,6 +188,7 @@ def test_a_tampered_leaf_digest_exits_6_and_names_it(mini_closed_copy):
     assert snapshot(mini_closed_copy) == tampered != before  # a failing close writes nothing
 
 
+@pytest.mark.slow
 def test_a_tampered_digest_exits_6_under_check_too(mini_closed_copy):
     sql(mini_closed_copy, "UPDATE prov.records SET input_digest = repeat('f', 64) WHERE number_id = ?", COMPOSITE)
     result = close_mini(mini_closed_copy, "2026-04", "--check")
@@ -194,6 +196,7 @@ def test_a_tampered_digest_exits_6_under_check_too(mini_closed_copy):
     assert any(d.startswith(f"{COMPOSITE}: digest does not re-derive") for d in failed(result)["CTL-PROV"])
 
 
+@pytest.mark.slow
 def test_a_tampered_value_exits_6_because_the_result_hash_moves(mini_closed_copy):
     sql(mini_closed_copy, "UPDATE prov.records SET value_cents = value_cents + 1 WHERE number_id = ?", COMPOSITE)
     result = close_mini(mini_closed_copy)
@@ -201,6 +204,7 @@ def test_a_tampered_value_exits_6_because_the_result_hash_moves(mini_closed_copy
     assert any(d.startswith("result_hash/2026-04:") for d in failed(result)["CTL-PROV"])
 
 
+@pytest.mark.slow
 def test_a_deleted_record_exits_6(mini_closed_copy):
     sql(mini_closed_copy, "DELETE FROM prov.records WHERE number_id = ?", LEAF)
     result = close_mini(mini_closed_copy)
@@ -208,6 +212,7 @@ def test_a_deleted_record_exits_6(mini_closed_copy):
     assert f"{LEAF}: no complete provenance record" in failed(result)["CTL-PROV"]
 
 
+@pytest.mark.slow
 def test_a_record_with_no_digest_exits_6(mini_closed_copy):
     sql(mini_closed_copy, "UPDATE prov.records SET input_digest = '' WHERE number_id = 'pnl/2026-04/5300'")
     result = close_mini(mini_closed_copy)
@@ -215,6 +220,7 @@ def test_a_record_with_no_digest_exits_6(mini_closed_copy):
     assert "pnl/2026-04/5300: no complete provenance record" in failed(result)["CTL-PROV"]
 
 
+@pytest.mark.slow
 def test_an_unregistered_id_exits_6(mini_closed_copy):
     sql(mini_closed_copy,
         "INSERT INTO prov.records SELECT 'cp/2026-04/acct_0001/bogus', month, value_cents, value_text, unit, "
@@ -225,6 +231,7 @@ def test_an_unregistered_id_exits_6(mini_closed_copy):
     assert "cp/2026-04/acct_0001/bogus: not in the number registry" in failed(result)["CTL-PROV"]
 
 
+@pytest.mark.slow
 def test_a_stored_query_that_is_not_a_select_fails_and_runs_nothing(mini_closed_copy):
     sql(mini_closed_copy, "UPDATE prov.records SET source_query = 'SELECT 1; DROP TABLE raw.gl' WHERE number_id = ?", LEAF)
     result = close_mini(mini_closed_copy)
@@ -234,6 +241,7 @@ def test_a_stored_query_that_is_not_a_select_fails_and_runs_nothing(mini_closed_
         assert c.execute("SELECT count(*) FROM raw.gl").fetchone()[0] > 0
 
 
+@pytest.mark.slow
 def test_a_tampered_config_record_is_found_through_the_flags_it_hangs_on(mini_closed_copy):
     sql(mini_closed_copy, "UPDATE prov.records SET input_digest = repeat('1', 64) WHERE number_id = 'cfg/policy'")
     result = close_mini(mini_closed_copy)
@@ -264,6 +272,7 @@ def test_a_key_mismatch_outranks_a_provenance_failure(mini_closed_copy, tmp_path
 # ------------------------------------------------------------------ a failure leaves the month open
 
 
+@pytest.mark.slow
 def test_a_failing_control_on_a_fresh_month_rolls_back_the_records_and_leaves_it_open(tmp_path, monkeypatch):
     warehouse = tmp_path / "w.duckdb"
     monkeypatch.setenv("MARGIN_SIGNOFF_DIR", str(FIXTURE_SIGNOFF))

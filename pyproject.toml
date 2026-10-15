@@ -36,7 +36,4 @@ packages = ["src/margin"]
 testpaths = ["tests"]
 # The cache stays under the ignored .venv/ so a test run leaves no untracked files.
 cache_dir = ".venv/.pytest_cache"
-markers = ["slow: runs the full books; excluded from the --fast subset"]
-# A crashing xdist worker is never respawned: a respawn loop outlives its controller and
-# grows without bound. The run fails on the first worker crash instead.
-addopts = "--max-worker-restart=0"
+markers = ["slow: runs the full books or one more full close of a tampered copy; excluded from the --fast subset"]

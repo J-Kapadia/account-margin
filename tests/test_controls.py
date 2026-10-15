@@ -63,6 +63,7 @@ def test_the_untouched_books_pass_every_control(books, tmp_path):
 
 
 @pytest.mark.parametrize("code", sorted(GL_CODE_CONTROL))
+@pytest.mark.slow
 def test_a_one_cent_slip_in_a_cost_gl_code_fails_its_own_tie_out_and_only_it(books, tmp_path, code):
     slip_gl(books, code)
     result = close(books, tmp_path)
@@ -74,6 +75,7 @@ def test_a_one_cent_slip_in_a_cost_gl_code_fails_its_own_tie_out_and_only_it(boo
     assert line.startswith(f"pnl/2026-03/{code}:") and "difference -1 cents" in line and "rows " in line
 
 
+@pytest.mark.slow
 def test_a_slip_in_the_support_ledger_names_the_ledger_row_and_the_tickets(books, tmp_path):
     slip_gl(books, "5300")
     result = close(books, tmp_path)
@@ -82,6 +84,7 @@ def test_a_slip_in_the_support_ledger_names_the_ledger_row_and_the_tickets(books
     assert len(hashes) > 1 and all(len(h) == 32 for h in hashes)  # the GL entry and the month's tickets
 
 
+@pytest.mark.slow
 def test_ledger_support_cost_with_no_closed_ticket_is_a_failure_not_a_dropped_pool(books, tmp_path):
     rewrite(books / "support_tickets.csv", lambda rows: [r for r in rows if not r["closed_date"].startswith("2026-03")])
     result = close(books, tmp_path)
@@ -89,6 +92,7 @@ def test_ledger_support_cost_with_no_closed_ticket_is_a_failure_not_a_dropped_po
     assert "no ticket closed in the month" in result.json["failed_controls"][0]["detail"][0]
 
 
+@pytest.mark.slow
 def test_ticket_cost_with_no_ledger_entry_is_a_failure(books, tmp_path):
     rewrite(books / "gl.csv", lambda rows: [r for r in rows if not (r["gl_period"] == "2026-03" and r["gl_code"] == "5300")])
     result = close(books, tmp_path)
@@ -99,6 +103,7 @@ def test_ticket_cost_with_no_ledger_entry_is_a_failure(books, tmp_path):
 # ------------------------------------------------------------------ allocation
 
 
+@pytest.mark.slow
 def test_an_empty_usage_month_fails_allocation_naming_the_month_rule_and_pool(books, tmp_path):
     rewrite(books / "usage_monthly.csv", lambda rows: [r for r in rows if r["month"] != "2026-03"])
     result = close(books, tmp_path)
@@ -114,6 +119,7 @@ def test_an_empty_usage_month_fails_allocation_naming_the_month_rule_and_pool(bo
     assert result.json["month"] == "2026-03"
 
 
+@pytest.mark.slow
 def test_a_tenant_tag_naming_no_account_fails_allocation(books, tmp_path):
     def change(rows):
         k = next(i for i, r in enumerate(rows) if r["ChargePeriodStart"].startswith("2026-03") and "tenant" in r["Tags"])
@@ -125,6 +131,7 @@ def test_a_tenant_tag_naming_no_account_fails_allocation(books, tmp_path):
     assert any("tenant tag names an unknown account" in d and d.startswith("rollup/2026-03/cloud_direct") for d in alloc["detail"])
 
 
+@pytest.mark.slow
 def test_a_charge_both_direct_and_shared_fails_allocation(books, tmp_path):
     def change(rows):
         shared = next(r for r in rows if r["ChargePeriodStart"].startswith("2026-03") and "tenant" not in r["Tags"])
@@ -138,6 +145,7 @@ def test_a_charge_both_direct_and_shared_fails_allocation(books, tmp_path):
     assert alloc["detail"][0].startswith("cp/2026-03/acct_0001/cloud_direct:") and "direct and shared" in alloc["detail"][0]
 
 
+@pytest.mark.slow
 def test_a_usage_model_with_no_provider_invoice_fails_allocation(books, tmp_path):
     rewrite(books / "provider_invoices.csv",
             lambda rows: [r for r in rows if not (r["month"] == "2026-03" and r["model"] == "fixture-small")])
@@ -149,6 +157,7 @@ def test_a_usage_model_with_no_provider_invoice_fails_allocation(books, tmp_path
 # ------------------------------------------------------------------ price pin
 
 
+@pytest.mark.slow
 def test_a_usage_model_with_no_pinned_price_fails_naming_the_model(books, tmp_path):
     prices = tmp_path / "prices.csv"
     lines = MINI_PRICES.read_text().splitlines()
@@ -167,6 +176,7 @@ def test_a_usage_model_with_no_pinned_price_fails_naming_the_model(books, tmp_pa
     (lambda r: {**r, "input_per_mtok": "0.0005"}, "whole number of nano-USD"),
     (lambda r: {**r, "output_per_mtok": "-1"}, "not a positive number"),
 ])
+@pytest.mark.slow
 def test_a_price_without_a_source_a_date_or_a_whole_nano_price_is_not_pinned(books, tmp_path, edit, reason):
     prices = tmp_path / "prices.csv"
     shutil.copy(MINI_PRICES, prices)
@@ -176,6 +186,7 @@ def test_a_price_without_a_source_a_date_or_a_whole_nano_price_is_not_pinned(boo
     assert len(pin["detail"]) == 1 and reason in pin["detail"][0] and "fixture-small" in pin["detail"][0]
 
 
+@pytest.mark.slow
 def test_a_month_without_an_inference_side_needs_no_price(tmp_path):
     # The `small` books have usage rows, no provider invoices and no price list.
     assert margin("gen", "--fixture", "small", "--out", str(tmp_path / "books"), "--json").code == 0
@@ -204,6 +215,7 @@ def test_a_focus_row_ending_exactly_at_the_month_boundary_passes(books, tmp_path
     assert next(c for c in result.json["controls"] if c["id"] == "CTL-PRICE-PIN")["status"] == "pass"
 
 
+@pytest.mark.slow
 def test_a_focus_row_ending_a_second_past_the_boundary_fails(books, tmp_path):
     resource = focus_end(books, "2026-04-01T00:00:01Z")
     result = close(books, tmp_path)
@@ -219,6 +231,7 @@ def test_a_focus_row_ending_a_second_past_the_boundary_fails(books, tmp_path):
     ("EffectiveCost", "12.345", "more than two decimals"),
     ("BilledCost", "12.345", "more than two decimals"),
 ])
+@pytest.mark.slow
 def test_a_focus_row_that_is_not_usd_utc_or_two_decimals_fails(books, tmp_path, field, value, reason):
     def change(rows):
         k = next(i for i, r in enumerate(rows) if r["ChargePeriodStart"] == "2026-03-01T00:00:00Z")

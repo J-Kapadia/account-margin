@@ -9,6 +9,8 @@ import csv
 import shutil
 
 import duckdb
+import pytest
+
 from conftest import MINI_BOOKS, MINI_CONFIG, close_mini, margin
 
 MONTHS = ["2026-02", "2026-03", "2026-04"]
@@ -59,6 +61,7 @@ def test_close_on_a_fresh_warehouse_closes_every_earlier_month_in_order(mini_clo
     assert months == MONTHS
 
 
+@pytest.mark.slow
 def test_close_on_a_closed_month_is_a_no_op_with_the_same_hash(mini_closed_copy):
     before = _states(mini_closed_copy)
     result = close_mini(mini_closed_copy, "2026-03")
@@ -78,6 +81,7 @@ def test_an_open_month_closes_and_gets_the_same_result(mini_closed_copy):
     assert dict((m, r) for m, _, _, r in after)["2026-03"] != dict((m, r) for m, _, _, r in before)["2026-03"]
 
 
+@pytest.mark.slow
 def test_a_failing_earlier_month_stops_the_catch_up_and_names_it(tmp_path):
     books = _books_copy(tmp_path)
     def slip(rows):

@@ -77,6 +77,7 @@ def test_check_passes_on_the_clean_fixture_and_the_month_closes(tmp_path):
     assert [(m, s) for m, s, *_ in state(warehouse)[0]] == [("2026-02", "closed"), ("2026-03", "closed")]
 
 
+@pytest.mark.slow
 def test_running_check_twice_gives_byte_identical_results(tmp_path):
     warehouse = tmp_path / "w.duckdb"
     first, second = check(warehouse, MINI_TRUTH), check(warehouse, MINI_TRUTH)
@@ -93,6 +94,7 @@ def test_check_does_not_change_the_result_hash(tmp_path):
 # ------------------------------------------------------------------ truth/ absent
 
 
+@pytest.mark.slow
 def test_check_without_truth_exits_4_and_plain_close_does_not_need_it(tmp_path):
     missing = tmp_path / "no-truth"
     warehouse = tmp_path / "w.duckdb"
@@ -113,6 +115,7 @@ def test_an_incomplete_answer_key_exits_4(tmp_path, truth):
 # ------------------------------------------------------------------ mismatches leave the month open
 
 
+@pytest.mark.slow
 def test_a_component_off_by_one_cent_exits_5_and_the_month_stays_open(tmp_path, truth):
     edit_csv(truth / "cost_components.csv",
              lambda rows: rows[row_of(rows)].update(support_cost_cents=str(int(rows[row_of(rows)]["support_cost_cents"]) + 1)))
@@ -148,6 +151,7 @@ def test_a_failing_check_on_a_closed_month_leaves_its_state_unchanged(mini_close
     assert state(mini_closed_copy) == before
 
 
+@pytest.mark.slow
 def test_a_failing_check_on_a_locked_month_changes_no_state(mini_closed_copy, truth):
     with duckdb.connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'locked' WHERE month = DATE '2026-03-01'")
@@ -159,6 +163,7 @@ def test_a_failing_check_on_a_locked_month_changes_no_state(mini_closed_copy, tr
     assert state(mini_closed_copy) == before
 
 
+@pytest.mark.slow
 def test_only_the_target_month_is_checked_not_the_catch_up_months(tmp_path, truth):
     edit_csv(truth / "cost_components.csv",
              lambda rows: rows[row_of(rows, "2026-02")].update(revenue_cents="1"))
@@ -166,6 +171,7 @@ def test_only_the_target_month_is_checked_not_the_catch_up_months(tmp_path, trut
     assert result.code == 0, result.stderr
 
 
+@pytest.mark.slow
 def test_a_missing_planted_account_and_a_wrong_reason_are_named(tmp_path, truth):
     path = truth / "planted_flags.json"
     planted = json.loads(path.read_text())
@@ -180,6 +186,7 @@ def test_a_missing_planted_account_and_a_wrong_reason_are_named(tmp_path, truth)
     assert found["CHK-REASONS"] == [f"flag/2026-03/{wrong_reason}: differs from the answer key"]
 
 
+@pytest.mark.slow
 def test_a_soft_flag_that_is_not_a_decoy_is_named(tmp_path, truth):
     path = truth / "planted_flags.json"
     planted = json.loads(path.read_text())
@@ -189,6 +196,7 @@ def test_a_soft_flag_that_is_not_a_decoy_is_named(tmp_path, truth):
     assert found["CHK-FLAGS"] == ["flag/2026-03/acct_0009: differs from the answer key"]
 
 
+@pytest.mark.slow
 def test_a_wrong_per_rule_result_and_status_change_count_are_named(tmp_path, truth):
     config = load_config(MINI_CONFIG)
     other = next(r for r in config.allocation.rules if r != config.allocation.recommended)
@@ -201,6 +209,7 @@ def test_a_wrong_per_rule_result_and_status_change_count_are_named(tmp_path, tru
     assert f"rollup/2026-03/accounts_status_change_{other}: differs from the answer key" in found
 
 
+@pytest.mark.slow
 def test_a_failure_prints_identifiers_only(tmp_path, truth):
     edit_csv(truth / "cost_components.csv",
              lambda rows: rows[row_of(rows)].update(revenue_cents="123456789", inference_cost_cents="987654321"))

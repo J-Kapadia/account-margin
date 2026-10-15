@@ -4,7 +4,7 @@
 #
 #   scripts/definition-of-done.sh [--fast]
 #
-# --fast skips the tests marked `slow` (none exist yet); the exit commands still run.
+# --fast skips the tests marked `slow` (those that need the full-size books); the exit commands still run.
 # Exit 2 means the toolchain could not be bootstrapped (no uv, and pip could not install it).
 set -euo pipefail
 cd "$(dirname "$0")/.."
