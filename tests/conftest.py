@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import shutil
@@ -10,6 +11,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import duckdb
 import pytest
 from hypothesis import settings
 
@@ -20,6 +22,36 @@ settings.load_profile("margin")
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_SIGNOFF = ROOT / "tests" / "fixtures" / "signoff"
 FIXTURE_CONFIG = ROOT / "tests" / "fixtures" / "config"
+
+
+# ------------------------------------------------------------------ capped DuckDB connections
+
+_real_connect = duckdb.connect
+
+
+@functools.wraps(_real_connect)
+def connect(*args, **kwargs):
+    """`duckdb.connect` with the warehouse caps: the same `SET memory_limit` and `SET threads` as
+    `margin.warehouse.connect`, applied after opening because DuckDB refuses a second connection
+    to the same file with a different `config=`. Signature and return value are unchanged."""
+    from margin import warehouse
+
+    con = _real_connect(*args, **kwargs)
+    limit = warehouse.memory_limit().replace("'", "''")
+    con.execute(f"SET memory_limit = '{limit}'")
+    con.execute(f"SET threads = {warehouse.threads()}")
+    return con
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cap_duckdb_connections():
+    """Every connection a test opens, directly or through library code, carries the caps; an
+    uncapped one sizes itself to the whole machine."""
+    duckdb.connect = connect
+    try:
+        yield
+    finally:
+        duckdb.connect = _real_connect
 
 
 @dataclass
