@@ -42,6 +42,25 @@ def env_for(warehouse: Path) -> dict[str, str]:
     )
 
 
+def work_dir(warehouse: Path) -> Path:
+    """Where dbt keeps its target and log directories for `warehouse`: beside the file, so a
+    second close of the same warehouse finds the parsed project and skips the full parse."""
+    return warehouse.resolve().with_name(warehouse.name + ".dbt")
+
+
+def location_flags(warehouse: Path, env: dict[str, str]) -> list[str]:
+    """`--target-path` and `--log-path` under the warehouse's work directory, each unless the
+    environment already names one (`DBT_TARGET_PATH`, `DBT_LOG_PATH`): a caller that shares one
+    parsed project across several warehouses sets those and keeps that."""
+    work = work_dir(warehouse)
+    flags = []
+    if "DBT_TARGET_PATH" not in env:
+        flags += ["--target-path", str(work / "target")]
+    if "DBT_LOG_PATH" not in env:
+        flags += ["--log-path", str(work / "logs")]
+    return flags
+
+
 def build(warehouse: Path, config_dir: Path) -> None:
     """Full-refresh every model and run its tests against `warehouse`, with the configuration."""
     env = env_for(warehouse)
@@ -49,6 +68,10 @@ def build(warehouse: Path, config_dir: Path) -> None:
         sys.executable, "-c", _DBT_MAIN, "build",
         "--project-dir", str(DBT_DIR), "--profiles-dir", str(DBT_DIR),
         "--vars", json.dumps(dbt_vars(config_dir)),
+        *location_flags(warehouse, env),
+        # Nothing reads dbt's JSON artifacts or its debug log: skip writing them. The partial-parse
+        # file is separate and still written.
+        "--no-write-json", "--log-level-file", "warn",
         "--no-use-colors", "--quiet",
     ]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True, cwd=ROOT)
