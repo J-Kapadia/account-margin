@@ -11,7 +11,7 @@ import json
 import shutil
 from decimal import Decimal
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import (
@@ -26,7 +26,7 @@ RATES = ROOT / "data" / "reference" / "support_rates.csv"
 
 @pytest.fixture(scope="module")
 def con(mini_warehouse):
-    c = duckdb.connect(str(mini_warehouse), read_only=True)
+    c = connect(str(mini_warehouse), read_only=True)
     yield c
     c.close()
 
@@ -230,7 +230,7 @@ def test_a_one_cent_slip_in_gl_5300_shows_in_the_tie_out(tmp_path, mini_books_co
         gl.write_text("\n".join(lines) + "\n")
 
     wh = _tampered_warehouse(tmp_path, mini_books_copy, slip)
-    with duckdb.connect(str(wh), read_only=True) as c:
+    with connect(str(wh), read_only=True) as c:
         off = c.execute("SELECT strftime(month, '%Y-%m'), gl_code, diff_cents FROM mart.fct_pnl_tieout"
                         " WHERE diff_cents <> 0").fetchall()
     assert off == [("2026-03", "5300", -1)]  # accounts minus ledger
@@ -254,7 +254,7 @@ def test_a_pool_with_cents_and_no_weight_is_reported_and_never_spread_by_another
                                  [(c, Decimal("0.01")) for c in ("DEEP_DISCOUNT", "MODEL_MIX", "SUPPORT_LOAD", "DEDICATED_CLOUD")])
 
     wh = _tampered_warehouse(tmp_path, mini_books_copy, empty_usage_month)
-    with duckdb.connect(str(wh), read_only=True) as c:
+    with connect(str(wh), read_only=True) as c:
         violations = c.execute(
             "SELECT rule, pool, pool_cents > 0 FROM intermediate.int_pool_violations"
             " WHERE strftime(month, '%Y-%m') = '2026-03' ORDER BY rule NULLS LAST, pool").fetchall()
@@ -283,7 +283,7 @@ def test_a_pool_with_cents_and_no_weight_is_reported_and_never_spread_by_another
 
 
 def test_absent_cost_books_and_prices_load_as_empty_tables(closed):
-    with duckdb.connect(str(closed.warehouse), read_only=True) as c:
+    with connect(str(closed.warehouse), read_only=True) as c:
         counts = {t: c.execute(f"SELECT count(*) FROM raw.{t}").fetchone()[0]
                   for t in ("cloud_focus", "provider_invoices", "support_tickets", "ref_model_prices",
                             "ref_support_rates")}
@@ -302,6 +302,6 @@ def test_close_runs_the_new_layers_on_mini_with_the_fixture_config(tmp_path):
         for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-CUTOFF", "CTL-PRICE-PIN", "CTL-REV-DUP", "CTL-SIGN",
                   "CTL-TIE-CLD", "CTL-TIE-INF", "CTL-TIE-REV", "CTL-TIE-SUP")
     ]
-    with duckdb.connect(str(tmp_path / "w.duckdb"), read_only=True) as c:
+    with connect(str(tmp_path / "w.duckdb"), read_only=True) as c:
         assert c.execute("SELECT count(*) FROM mart.fct_flags").fetchone()[0] == 24  # 2026-02 and 2026-03
         assert c.execute("SELECT status FROM state.close_state ORDER BY month").fetchall() == [("closed",)] * 2

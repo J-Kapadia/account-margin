@@ -12,7 +12,7 @@ import re
 import shutil
 from pathlib import Path
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import MINI_CONFIG, MINI_TRUTH, close_mini, margin
@@ -46,7 +46,7 @@ def row_of(rows, month="2026-03", account="acct_0001"):
 
 
 def state(warehouse: Path):
-    with duckdb.connect(str(warehouse), read_only=True) as con:
+    with connect(str(warehouse), read_only=True) as con:
         states = con.execute(
             "SELECT strftime(month, '%Y-%m'), status, result_hash, closed_run_id, input_digest "
             "FROM state.close_state ORDER BY month").fetchall()
@@ -127,7 +127,7 @@ def test_a_component_off_by_one_cent_exits_5_and_the_month_stays_open(tmp_path, 
     assert result.json["month"] == "2026-03"
     # only the catch-up month closed; the target month has no closed row
     assert [(m, s) for m, s, *_ in state(warehouse)[0]] == [("2026-02", "closed")]
-    with duckdb.connect(str(warehouse), read_only=True) as con:
+    with connect(str(warehouse), read_only=True) as con:
         assert con.execute("SELECT count(*) FROM prov.records WHERE month = DATE '2026-03-01'").fetchone()[0] == 0
 
 
@@ -153,7 +153,7 @@ def test_a_failing_check_on_a_closed_month_leaves_its_state_unchanged(mini_close
 
 @pytest.mark.slow
 def test_a_failing_check_on_a_locked_month_changes_no_state(mini_closed_copy, truth):
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'locked' WHERE month = DATE '2026-03-01'")
     before = state(mini_closed_copy)
     edit_csv(truth / "cost_components.csv", lambda rows: rows[row_of(rows)].update(revenue_cents="1"))
@@ -224,7 +224,7 @@ def test_a_failure_prints_identifiers_only(tmp_path, truth):
 
 @pytest.fixture
 def records_and_con(mini_closed):
-    con = duckdb.connect(str(mini_closed), read_only=True)
+    con = connect(str(mini_closed), read_only=True)
     cursor = con.execute("SELECT * FROM prov.records WHERE month = DATE '2026-03-01'")
     cols = [d[0] for d in cursor.description]
     records = [dict(zip(cols, r)) for r in cursor.fetchall()]

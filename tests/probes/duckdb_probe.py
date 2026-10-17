@@ -8,19 +8,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-import duckdb
+from margin.warehouse import connect
 
-HOLD = "import duckdb, sys; c = duckdb.connect(sys.argv[1], read_only=True); print('ready', flush=True); sys.stdin.readline()"
-WRITE = "import duckdb, sys; duckdb.connect(sys.argv[1]).execute('INSERT INTO t VALUES (2)')"
+HOLD = "import sys; from pathlib import Path; from margin.warehouse import connect; c = connect(Path(sys.argv[1]), read_only=True); print('ready', flush=True); sys.stdin.readline()"
+WRITE = "import sys; from pathlib import Path; from margin.warehouse import connect; connect(Path(sys.argv[1])).execute('INSERT INTO t VALUES (2)')"
 
 
 def probe(path: Path) -> None:
-    con = duckdb.connect(str(path))
+    con = connect(path)
     con.execute("CREATE TABLE t (x INTEGER)")
     con.execute("BEGIN")
     con.execute("INSERT INTO t VALUES (1)")
     # 1. A second connection does not see uncommitted rows.
-    assert duckdb.connect(str(path)).execute("SELECT count(*) FROM t").fetchone()[0] == 0
+    assert connect(path).execute("SELECT count(*) FROM t").fetchone()[0] == 0
     # 2. A subprocess cannot write while this process holds the file.
     other = subprocess.run([sys.executable, "-c", WRITE, str(path)], capture_output=True, text=True)
     assert other.returncode != 0 and "lock" in other.stderr.lower(), other.stderr

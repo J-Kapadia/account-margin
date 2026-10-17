@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import duckdb
+from conftest import connect
 import pytest
 from hypothesis import given, settings, strategies as st
 
@@ -21,7 +21,7 @@ RULES = ("by_tokens", "by_revenue", "equal_usage")
 
 @pytest.fixture(scope="module")
 def con():
-    c = duckdb.connect()
+    c = connect()
     yield c
     c.close()
 

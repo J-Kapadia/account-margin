@@ -4,7 +4,7 @@ import re
 import shutil
 from pathlib import Path
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import MINI_CONFIG, Workspace, margin
@@ -127,7 +127,7 @@ def test_explain_unknown_id_names_the_nearest(closed):
 
 
 def test_explain_detects_a_forged_digest(closed_copy):
-    con = duckdb.connect(str(closed_copy.warehouse))
+    con = connect(str(closed_copy.warehouse))
     con.execute("UPDATE prov.records SET input_digest = repeat('0', 64) "
                 "WHERE number_id = 'cp/2026-03/acct_0002/revenue'")
     con.close()
@@ -143,7 +143,7 @@ def test_memo_numbers_all_resolve_through_explain(closed, tmp_path):
     ids = re.findall(r'data-num-id="([^"]+)" data-value="([^"]+)"', html)
     assert {i for i, _ in ids} >= {"rollup/2026-03/revenue", "cp/2026-03/acct_0003/revenue",
                                    "pnl/2026-03/4000"}
-    con = duckdb.connect(str(closed.warehouse), read_only=True)
+    con = connect(str(closed.warehouse), read_only=True)
     try:
         for number_id, value in ids:
             node = explain_mod.explain(con, number_id)

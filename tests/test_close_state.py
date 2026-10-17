@@ -8,7 +8,7 @@ from __future__ import annotations
 import csv
 import shutil
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import MINI_BOOKS, MINI_CONFIG, close_mini, margin
@@ -17,7 +17,7 @@ MONTHS = ["2026-02", "2026-03", "2026-04"]
 
 
 def _states(warehouse):
-    with duckdb.connect(str(warehouse), read_only=True) as con:
+    with connect(str(warehouse), read_only=True) as con:
         return con.execute(
             "SELECT strftime(month, '%Y-%m'), status, result_hash, closed_run_id FROM state.close_state ORDER BY month"
         ).fetchall()
@@ -52,7 +52,7 @@ def _first_gl_row(rows, period, code):
 
 def test_close_on_a_fresh_warehouse_closes_every_earlier_month_in_order(mini_closed):
     assert [(m, s) for m, s, *_ in _states(mini_closed)] == [(m, "closed") for m in MONTHS]
-    with duckdb.connect(str(mini_closed), read_only=True) as con:
+    with connect(str(mini_closed), read_only=True) as con:
         kinds = {k for (k,) in con.execute("SELECT DISTINCT producer_kind FROM prov.records").fetchall()}
         months = [m for (m,) in con.execute(
             "SELECT strftime(month, '%Y-%m') FROM prov.records WHERE month IS NOT NULL GROUP BY month ORDER BY month"
@@ -72,7 +72,7 @@ def test_close_on_a_closed_month_is_a_no_op_with_the_same_hash(mini_closed_copy)
 
 def test_an_open_month_closes_and_gets_the_same_result(mini_closed_copy):
     before = _states(mini_closed_copy)
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'open', result_hash = NULL WHERE month = DATE '2026-03-01'")
     result = close_mini(mini_closed_copy, "2026-03")
     assert result.code == 0, result.stderr
@@ -129,12 +129,12 @@ def test_the_read_commands_accept_a_closed_month_and_refuse_an_open_one(mini_clo
     flags = ["--fixture", "mini", "--warehouse", str(mini_closed_copy), "--json"]
     assert margin("explain", "rollup/2026-04/revenue", *flags).code == 0
     assert margin("memo", "--month", "2026-04", "--out", str(tmp_path / "s"), *flags).code == 0
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'open' WHERE month = DATE '2026-04-01'")
     for args in (("explain", "rollup/2026-04/revenue"), ("memo", "--month", "2026-04", "--out", str(tmp_path / "t"))):
         result = margin(*args, *flags)
         assert result.code == 4 and "not closed" in result.json["message"]
     assert _states(mini_closed_copy)[-1][1] == "open"  # a read changes no state
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("DELETE FROM state.close_state WHERE month = DATE '2026-04-01'")
     assert margin("explain", "rollup/2026-04/revenue", *flags).code == 4  # no row is unclosed too

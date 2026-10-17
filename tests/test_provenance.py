@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import shutil
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import FIXTURE_SIGNOFF, MINI_CONFIG, close_mini
@@ -18,7 +18,7 @@ FAMILIES_IN_THE_HASH = {"cp", "pnl", "rollup", "flag", "cpr", "cohort"}
 
 @pytest.fixture(scope="module")
 def con(mini_closed):
-    c = duckdb.connect(str(mini_closed), read_only=True)
+    c = connect(str(mini_closed), read_only=True)
     yield c
     c.close()
 
@@ -132,7 +132,7 @@ def test_result_hash_is_equal_across_two_closes_and_ignores_the_commit(mini_clos
     assert result.code == 0, result.stderr
 
     def hashes(path):
-        with duckdb.connect(str(path), read_only=True) as c:
+        with connect(str(path), read_only=True) as c:
             return (
                 c.execute("SELECT month, result_hash, input_digest FROM state.close_state ORDER BY month").fetchall(),
                 c.execute("SELECT DISTINCT git_sha, producer_kind FROM prov.records").fetchall(),
@@ -186,7 +186,7 @@ def test_changing_one_pool_row_changes_every_cloud_shared_digest_and_no_other_co
     assert result.code == 0, result.stderr
 
     def digests(path):
-        with duckdb.connect(str(path), read_only=True) as c:
+        with connect(str(path), read_only=True) as c:
             return dict(c.execute("SELECT number_id, input_digest FROM prov.records WHERE number_id LIKE 'cp/2026-04/%'").fetchall())
 
     before, after = digests(mini_closed), digests(changed)

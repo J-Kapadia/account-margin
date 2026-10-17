@@ -11,7 +11,7 @@ import csv
 import json
 import shutil
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import FIXTURE_SIGNOFF, MINI_CONFIG, MINI_TRUTH, close_mini
@@ -28,7 +28,7 @@ COMPOSITE = "rollup/2026-04/revenue"
 
 @pytest.fixture(scope="module")
 def con(mini_closed):
-    c = duckdb.connect(str(mini_closed), read_only=True)
+    c = connect(str(mini_closed), read_only=True)
     yield c
     c.close()
 
@@ -39,12 +39,12 @@ def config():
 
 
 def sql(warehouse, statement, *args):
-    with duckdb.connect(str(warehouse)) as c:
+    with connect(str(warehouse)) as c:
         c.execute(statement, list(args))
 
 
 def snapshot(warehouse):
-    with duckdb.connect(str(warehouse), read_only=True) as c:
+    with connect(str(warehouse), read_only=True) as c:
         return (
             c.execute("SELECT * FROM state.close_state ORDER BY month").fetchall(),
             c.execute("SELECT number_id, value_cents, value_text, input_digest FROM prov.records "
@@ -163,7 +163,7 @@ def test_every_stored_id_is_registered_and_its_month_matches(con):
 
 
 def test_the_writer_refuses_an_unregistered_id(tmp_path):
-    c = duckdb.connect(str(tmp_path / "w.duckdb"))
+    c = connect(str(tmp_path / "w.duckdb"))
     init_schemas(c)
     with pytest.raises(MarginError) as err:
         prov.write_records(c, [{"number_id": "cp/2026-04/acct_0001/bogus"}])
@@ -237,7 +237,7 @@ def test_a_stored_query_that_is_not_a_select_fails_and_runs_nothing(mini_closed_
     result = close_mini(mini_closed_copy)
     assert result.code == 6
     assert any("not a single SELECT" in d for d in failed(result)["CTL-PROV"])
-    with duckdb.connect(str(mini_closed_copy), read_only=True) as c:
+    with connect(str(mini_closed_copy), read_only=True) as c:
         assert c.execute("SELECT count(*) FROM raw.gl").fetchone()[0] > 0
 
 
@@ -283,7 +283,7 @@ def test_a_failing_control_on_a_fresh_month_rolls_back_the_records_and_leaves_it
         close_mod.close_month(paths, "2026-02")
     assert err.value.exit_code == 6 and err.value.failed_controls[0]["id"] == "CTL-PROV"
     assert err.value.controls[-1] == {"id": "CTL-PROV", "status": "fail", "violating_rows": 1}
-    with duckdb.connect(str(warehouse), read_only=True) as c:
+    with connect(str(warehouse), read_only=True) as c:
         assert c.execute("SELECT count(*) FROM state.close_state").fetchone()[0] == 0
         assert c.execute("SELECT count(*) FROM prov.records WHERE month IS NOT NULL").fetchone()[0] == 0
         assert c.execute("SELECT status FROM ctl.control_results WHERE control_id = 'CTL-PROV'").fetchall() == [("fail",)]

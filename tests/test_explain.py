@@ -11,7 +11,7 @@ import json
 import random
 from pathlib import Path
 
-import duckdb
+from conftest import connect
 import jsonschema
 import pytest
 from click.testing import CliRunner
@@ -37,7 +37,7 @@ def run(warehouse, *args):
 
 @pytest.fixture(scope="module")
 def ids_by_month(mini_closed):
-    with duckdb.connect(str(mini_closed), read_only=True) as con:
+    with connect(str(mini_closed), read_only=True) as con:
         return {
             m: [r for (r,) in con.execute(
                 "SELECT number_id FROM prov.records WHERE month = ? ORDER BY 1", [f"{m}-01"]).fetchall()]
@@ -118,7 +118,7 @@ def test_a_number_shared_by_many_parents_is_expanded_once(mini_closed):
 
 
 def test_month_less_ids_are_answered_from_their_record(mini_closed):
-    with duckdb.connect(str(mini_closed), read_only=True) as con:
+    with connect(str(mini_closed), read_only=True) as con:
         ref = con.execute("SELECT number_id FROM prov.records WHERE number_id LIKE 'ref/%' ORDER BY 1").fetchone()[0]
     for number_id in ("cfg/policy", "cfg/allocation", ref):
         code, env = run(mini_closed, number_id)
@@ -137,7 +137,7 @@ def test_an_unknown_month_less_id_in_a_closed_warehouse_exits_2(mini_closed, num
 
 @pytest.mark.parametrize("number_id", MISSING_MONTH_LESS)
 def test_a_month_less_id_in_a_warehouse_with_no_records_exits_4(mini_closed_copy, number_id):
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("DELETE FROM prov.records")
     code, env = run(mini_closed_copy, number_id)
     assert code == 4 and env["message"] == f"no provenance record for {number_id}: run close"
@@ -150,7 +150,7 @@ def test_a_scenario_id_needs_its_base_month_closed_and_its_records(mini_closed_c
     code, env = run(mini_closed_copy, "scenario/2026-04/summary/monthly_rate")
     assert code == 4 and env["message"] == "scenario not run for month 2026-04"
     child = "cp/2026-04/acct_0001/inference_cost"
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         (digest,) = con.execute("SELECT input_digest FROM prov.records WHERE number_id = ?", [child]).fetchone()
         con.execute(
             "INSERT INTO prov.records SELECT ?, month, 1, '1', unit, 'margin.scenario', git_sha, producer_kind, "
@@ -158,7 +158,7 @@ def test_a_scenario_id_needs_its_base_month_closed_and_its_records(mini_closed_c
             [number_id, prov.digest_children([(child, digest)]), json.dumps([child]), child])
     code, env = run(mini_closed_copy, number_id)
     assert code == 0 and env["month"] == "2026-04" and env["chain"]["children"][0]["number_id"] == child
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'open' WHERE month = DATE '2026-04-01'")
     code, env = run(mini_closed_copy, number_id)
     assert code == 4 and env["message"] == "month 2026-04 not closed"
@@ -168,7 +168,7 @@ def test_a_scenario_id_needs_its_base_month_closed_and_its_records(mini_closed_c
 
 
 def test_an_open_month_exits_4_for_every_month_family(mini_closed_copy):
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'open' WHERE month = DATE '2026-03-01'")
     for number_id in ("cp/2026-03/acct_0001/revenue", "pnl/2026-03/4000", "rollup/2026-03/revenue",
                       "flag/2026-03/acct_0001", "cpr/2026-03/acct_0001/by_revenue",
@@ -189,7 +189,7 @@ def test_an_id_outside_the_grammar_exits_2_with_three_nearest(mini_closed):
 
 
 def test_a_tampered_digest_exits_6_naming_the_number(mini_closed_copy):
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE prov.records SET input_digest = repeat('0', 64) WHERE number_id = 'cp/2026-04/acct_0001/revenue'")
     code, env = run(mini_closed_copy, "cp/2026-04/acct_0001/revenue")
     assert code == 6 and env["message"].startswith("digest mismatch for cp/2026-04/acct_0001/revenue")
@@ -199,14 +199,14 @@ def test_a_tampered_digest_exits_6_naming_the_number(mini_closed_copy):
 
 
 def test_a_missing_child_record_exits_6(mini_closed_copy):
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("DELETE FROM prov.records WHERE number_id = 'cp/2026-04/acct_0001/revenue'")
     code, env = run(mini_closed_copy, "cp/2026-04/acct_0001/contribution_profit")
     assert code == 6 and "no record for cp/2026-04/acct_0001/revenue" in env["message"]
 
 
 def test_a_stored_query_that_is_not_a_select_exits_6(mini_closed_copy):
-    with duckdb.connect(str(mini_closed_copy)) as con:
+    with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE prov.records SET source_query = 'DROP TABLE raw.gl' WHERE number_id = 'cp/2026-04/acct_0001/revenue'")
     assert run(mini_closed_copy, "cp/2026-04/acct_0001/revenue")[0] == 6
 

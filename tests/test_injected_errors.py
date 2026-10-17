@@ -11,7 +11,7 @@ import re
 import shutil
 from pathlib import Path
 
-import duckdb
+from conftest import connect
 import pytest
 
 from conftest import MINI_BOOKS, MINI_CONFIG, MINI_PRICES, Result, margin, shared_dir
@@ -99,7 +99,7 @@ def expected_number_id(error: str, target: dict) -> str:
 
 def row_hash(warehouse: Path, error: str, key: str) -> str:
     table, column = ROW[error]
-    con = duckdb.connect(str(warehouse), read_only=True)
+    con = connect(str(warehouse), read_only=True)
     try:
         (found,) = con.execute(f"SELECT _row_hash FROM raw.{table} WHERE {column} = ?", [key]).fetchall()
     finally:
