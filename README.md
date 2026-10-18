@@ -38,6 +38,14 @@ The scenario asks what happens to the accounts below the margin floor if the cos
 - The disclaimer travels with the numbers: the series is a blend of model vendors' list prices with fixed weights (an unweighted mean over three tiers of the input and output price, three parts input to one part output), applied to synthetic accounts. It is not Acme's per-model price and not any customer's cost.
 - The series file is `data/reference/list_price_series.csv`: one row per tier and month, 2026-03 through 2026-09, each with the vendor's pricing page as captured by the Internet Archive and the day it was read; `data/reference/README.md` gives the method. Set `MARGIN_LIST_PRICE_SERIES` to read another file of the same shape.
 
+## Build versus buy
+
+The memo's build-versus-buy section sets what building this tool cost against the list price of products that sell a similar job, and gives a verdict per vendor: *buy* when the vendor's annual list price is below the build cost amortised over 12 months, plus 12 times the monthly run cost, plus a maintenance allowance (10% of the build cost per year); otherwise *build*. Every figure is a `bvb/` number, so `margin explain bvb/maintenance_allowance` walks it down to the source rows.
+
+- `data/reference/build_cost.csv` is the file of build-cost totals (written by the script below; absent until a collection has run), totals only (dollars, tokens, elapsed hours, review minutes, monthly run cost); how each was measured is stated in the memo's source labels (`events`, `git` or `manual`). The per-item ledger behind the totals is not part of the repository. `scripts/collect-build-cost.py --ledger PATH --review PATH --collected-on YYYY-MM-DD [--run-cost-monthly-usd N] [--out PATH]` takes file paths in and writes the totals out.
+- `data/reference/vendor_prices.csv` holds each vendor's published annual list price with the pricing page it was read from and the day it was read; `data/reference/README.md` gives the selection rule. A vendor that does not publish a price is not listed and no price is estimated.
+- Both files are read from `data/reference/`, or from the directory named by `MARGIN_REFERENCE_DIR`; `tests/fixtures/reference/` holds a small pair for tests and `scripts/definition-of-done.sh` runs the section on it.
+
 ## What it does
 
 - Computes contribution profit per account per month: revenue, less inference, cloud and support cost to serve the account.
@@ -104,7 +112,7 @@ uv run pytest -q tests/test_injected_errors.py
 - `dbt/`: the dbt project (staging, intermediate and mart models)
 - `controls/`: one SQL file per control
 - `config/`: allocation and policy config (production sign-offs are not committed yet; the `mini` fixture carries its own under `tests/fixtures/signoff`)
-- `data/reference/`: reference data the app reads: support rates, the sourced and dated list-price file, and an empty quote registry today
+- `data/reference/`: reference data the app reads: support rates, the sourced and dated list-price files, the build-cost totals, vendor prices, and an empty quote registry today
 - `tests/`: unit, property, integration and acceptance tests, and the committed `mini` fixture
 
 ## Licence

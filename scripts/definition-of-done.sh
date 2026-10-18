@@ -103,6 +103,20 @@ uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --
 uv run margin status --fixture mini --warehouse "$roll"
 uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$roll" --recompute --json
 
+# Build versus buy on a fresh `mini` warehouse: the reference directory is the committed reference data
+# with the fixture's build-cost totals and vendor prices laid over it, so the figures do not depend on
+# what the author has measured or sourced. Close, explain a bvb figure, run the scenario the memo needs,
+# build the memo and look for the build-cost figure in the page.
+mkdir "$work/reference"
+cp data/reference/*.csv "$work/reference/"
+cp tests/fixtures/reference/*.csv "$work/reference/"
+MARGIN_REFERENCE_DIR="$work/reference" uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" \
+  --warehouse "$work/bvb.duckdb" --json
+uv run margin explain bvb/maintenance_allowance --fixture mini --warehouse "$work/bvb.duckdb"
+uv run margin scenario --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/bvb.duckdb" --json
+uv run margin memo --month 2026-03 --fixture mini --warehouse "$work/bvb.duckdb" --out "$work/bvb-site" --json
+grep -q 'bvb/build_cost' "$work/bvb-site/2026-03/index.html"
+
 if [ "$fast" -eq 1 ]; then
   uv run pytest -q -m "not slow"
 else
