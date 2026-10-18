@@ -77,6 +77,10 @@ uv run pytest -q
 uv run pytest -q tests/test_injected_errors.py
 ```
 
+## Operator notes
+
+`scripts/profile-close.sh` closes the `mini` fixture twice in a temporary warehouse and prints one table, per close, of the wall time and where it went (the dbt subprocess, dbt's import, parse and run, and the rest); `--json` prints the same as one object.
+
 ## Layout
 
 - `src/margin/`: the `margin` package and the memo templates
