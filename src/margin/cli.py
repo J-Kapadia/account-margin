@@ -1,4 +1,4 @@
-"""The `margin` command line: gen, close, explain, memo.
+"""The `margin` command line: gen, close, explain, memo, agreement.
 
 Every command takes the path flags and `--json`; an error becomes a failure
 envelope and the exit code of the error contract (see errors.py).
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 
+from . import agreement as agreement_mod
 from . import check as check_mod
 from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
@@ -227,6 +228,37 @@ def memo(paths: Paths, month: str, out: Path):
             con.close()
     return {"month": month, "out": str(out), "files": [str(f) for f in files]}, [
         f"wrote {f}" for f in files
+    ]
+
+
+@main.command()
+@click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
+              help="Month to check, YYYY-MM (closed or locked, memo built).")
+@click.option("--check", is_flag=True, help="Fail CHK-AGREEMENT (exit 3) on any disagreement; "
+              "without it the rate is only reported.")
+@click.option("--write", is_flag=True, help="Store the result in <site>/<month>/agreement.json.")
+@click.option("--site", type=click.Path(path_type=Path), default=Path("site"), show_default=True,
+              help="The built site to read the memo and llms.txt from.")
+@click.option("--values", "values_path", type=click.Path(path_type=Path), default=None,
+              help="Read the cached values from this file instead of the one llms.txt links.")
+@common_options("warehouse")
+def agreement(paths: Paths, month: str, check: bool, write: bool, site: Path, values_path: Path | None):
+    """Ask every number of a month through the CLI, SQL, the memo and the cached values."""
+    _require_warehouse(paths)
+    with warehouse_lock(paths.lock, exclusive=False):
+        con = connect(paths.warehouse, read_only=True)
+        try:
+            explain_mod.require_closed(con, month)
+        finally:
+            con.close()
+        if not (site / month / "index.html").is_file():
+            raise MarginError(EXIT_PRECONDITION, f"memo not built for month {month}: run margin memo",
+                              month=month)
+        result = agreement_mod.run(paths, month, site, values_path, write,
+                                   explain_command=explain, check=check)
+    return {"month": month, **result}, [
+        f"{month}: {result['ids_checked']} IDs through {', '.join(result['interfaces'])}; "
+        f"disagreement rate {result['disagreement_rate']}"
     ]
 
 
