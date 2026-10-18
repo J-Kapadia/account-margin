@@ -33,9 +33,9 @@ TIER_OF_PLAN = {"usage": "standard", "committed": "priority", "enterprise": "ent
 PLANS = ("usage", "committed", "enterprise")
 # plan -> (monthly list revenue range in dollars, platform fee in cents)
 PLAN_SHAPE = {
-    "usage": ((1800, 4800), 9900),
-    "committed": ((3500, 7500), 49900),
-    "enterprise": ((6500, 12500), 99900),
+    "usage": ((1500, 4800), 9900),
+    "committed": ((4000, 12000), 59900),
+    "enterprise": ((12000, 40000), 179900),
 }
 ADJECTIVES = [
     "Alder", "Birch", "Cedar", "Dune", "Elm", "Fjord", "Garnet", "Harbor", "Iris", "Juniper",
@@ -215,9 +215,9 @@ def build_layout(
         discount = Decimal(0) if draws[1] < 0.62 else Decimal(5 * (1 + int(draws[2] * 4))) / 100
         start_idx, end_idx = 0, n_months - 1
         late = not preset and idx not in planted_firm and idx not in planted_decoy
-        if late and draws[3] < 0.12 and n_months > 2:
+        if late and draws[3] < 0.16 and n_months > 2:
             start_idx = 1 + int(draws[4] * (n_months - 2))
-        elif late and draws[3] > 0.96 and n_months > 3:
+        elif late and draws[3] > 0.92 and n_months > 3:
             end_idx = n_months // 2 + int(draws[4] * (n_months - 1 - n_months // 2))
         if idx in planted_decoy:
             plan = "usage"
@@ -242,7 +242,7 @@ def build_layout(
             start_idx=start_idx, end_idx=end_idx,
             start_date=_start_date(r, first_month, start_idx, months),
             base_cents=int((lo + (hi - lo) * draws[5]) * 100),
-            growth=-0.01 + 0.03 * draws[6],
+            growth=-0.01 + 0.056 * draws[6],
             f_in=0.65 + 0.20 * draws[7],
             fee_cents=fee,
             dedicated_rate=(0.010 + 0.015 * draws[9]) if draws[8] < 0.10 else 0.0,

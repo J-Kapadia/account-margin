@@ -4,7 +4,7 @@ Contribution profit by customer account, rolled forward monthly, with controls.
 
 One command a month turns a usage-priced AI company's books into contribution profit by customer account, tied to the P&L to the cent, with a memo that makes the judgement calls. Open the published memo for any closed month, click any number, and land on a chain that ends at hashed source rows.
 
-Everything is synthetic. The books belong to "Acme AI", a generated usage-priced AI API business (about 300 accounts, 12 months), written by a seeded generator. The only real numbers will be cited, published list prices; the file that holds them (`data/reference/model_prices.csv`) is not in the tree yet.
+Everything is synthetic. The books belong to "Acme AI", a generated usage-priced AI API business (about 300 accounts, 12 months), written by a seeded generator. The only real numbers will be cited, published list prices; the file that holds them (`data/reference/model_prices.csv`) lists each model's vendor price page and the date it was read.
 
 ## Status
 
@@ -42,7 +42,7 @@ Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
 ## Full run (planned for v0.1; does not run yet)
 
-This is the target sequence, not what works today. It needs the published list-price file, `data/reference/model_prices.csv`, the production sign-offs and the unbuilt commands in the table below. Today `margin gen --seed 20261013 --out data/books` exits 4 because the price file is absent. Use the `mini` fixture commands under Status.
+This is the target sequence, not what works today. It needs the production sign-offs and the unbuilt commands in the table below. Today `margin gen --seed 20261013 --out data/books` runs and writes the full books, priced from `data/reference/model_prices.csv`. Use the `mini` fixture commands under Status.
 
 ```bash
 uv sync --frozen
@@ -83,7 +83,7 @@ uv run pytest -q tests/test_injected_errors.py
 - `dbt/`: the dbt project (staging, intermediate and mart models)
 - `controls/`: one SQL file per control
 - `config/`: allocation and policy config (production sign-offs are not committed yet; the `mini` fixture carries its own under `tests/fixtures/signoff`)
-- `data/reference/`: reference data the app reads: support rates and an empty quote registry today; the sourced, dated list-price file is still to come
+- `data/reference/`: reference data the app reads: support rates, the sourced and dated list-price file, and an empty quote registry today
 - `tests/`: unit, property, integration and acceptance tests, and the committed `mini` fixture
 
 ## Licence

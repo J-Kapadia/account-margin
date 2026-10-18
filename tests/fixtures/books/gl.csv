@@ -1,25 +1,25 @@
 entry_id,gl_period,gl_code,amount_cents,memo
-gl_2026-02_01,2026-02,4000,274100,synthetic 2026-02 platform fees
-gl_2026-02_02,2026-02,4100,2687031,synthetic 2026-02 usage revenue
-gl_2026-02_03,2026-02,4900,-39397,synthetic 2026-02 credits
-gl_2026-02_04,2026-02,5100,840539,synthetic 2026-02 inference fixture-large
-gl_2026-02_05,2026-02,5100,394418,synthetic 2026-02 inference fixture-medium
-gl_2026-02_06,2026-02,5100,302285,synthetic 2026-02 inference fixture-small
-gl_2026-02_07,2026-02,5200,207598,synthetic 2026-02 cloud
-gl_2026-02_08,2026-02,5300,76290,synthetic 2026-02 support
-gl_2026-03_01,2026-03,4000,274100,synthetic 2026-03 platform fees
-gl_2026-03_02,2026-03,4100,2710889,synthetic 2026-03 usage revenue
-gl_2026-03_03,2026-03,4900,-40090,synthetic 2026-03 credits
-gl_2026-03_04,2026-03,5100,712994,synthetic 2026-03 inference fixture-large
-gl_2026-03_05,2026-03,5100,311282,synthetic 2026-03 inference fixture-medium
-gl_2026-03_06,2026-03,5100,395441,synthetic 2026-03 inference fixture-small
-gl_2026-03_07,2026-03,5200,203340,synthetic 2026-03 cloud
-gl_2026-03_08,2026-03,5300,97020,synthetic 2026-03 support
-gl_2026-04_01,2026-04,4000,274100,synthetic 2026-04 platform fees
-gl_2026-04_02,2026-04,4100,2837001,synthetic 2026-04 usage revenue
-gl_2026-04_03,2026-04,4900,-53416,synthetic 2026-04 credits
-gl_2026-04_04,2026-04,5100,603204,synthetic 2026-04 inference fixture-large
-gl_2026-04_05,2026-04,5100,311193,synthetic 2026-04 inference fixture-medium
-gl_2026-04_06,2026-04,5100,469286,synthetic 2026-04 inference fixture-small
-gl_2026-04_07,2026-04,5200,195912,synthetic 2026-04 cloud
-gl_2026-04_08,2026-04,5300,175140,synthetic 2026-04 support
+gl_2026-02_01,2026-02,4000,314100,synthetic 2026-02 platform fees
+gl_2026-02_02,2026-02,4100,3434945,synthetic 2026-02 usage revenue
+gl_2026-02_03,2026-02,4900,-38837,synthetic 2026-02 credits
+gl_2026-02_04,2026-02,5100,1094742,synthetic 2026-02 inference fixture-large
+gl_2026-02_05,2026-02,5100,407735,synthetic 2026-02 inference fixture-medium
+gl_2026-02_06,2026-02,5100,295087,synthetic 2026-02 inference fixture-small
+gl_2026-02_07,2026-02,5200,226151,synthetic 2026-02 cloud
+gl_2026-02_08,2026-02,5300,92040,synthetic 2026-02 support
+gl_2026-03_01,2026-03,4000,314100,synthetic 2026-03 platform fees
+gl_2026-03_02,2026-03,4100,3513406,synthetic 2026-03 usage revenue
+gl_2026-03_03,2026-03,4900,-39603,synthetic 2026-03 credits
+gl_2026-03_04,2026-03,5100,886578,synthetic 2026-03 inference fixture-large
+gl_2026-03_05,2026-03,5100,348151,synthetic 2026-03 inference fixture-medium
+gl_2026-03_06,2026-03,5100,391419,synthetic 2026-03 inference fixture-small
+gl_2026-03_07,2026-03,5200,218324,synthetic 2026-03 cloud
+gl_2026-03_08,2026-03,5300,123900,synthetic 2026-03 support
+gl_2026-04_01,2026-04,4000,314100,synthetic 2026-04 platform fees
+gl_2026-04_02,2026-04,4100,3736565,synthetic 2026-04 usage revenue
+gl_2026-04_03,2026-04,4900,-52585,synthetic 2026-04 credits
+gl_2026-04_04,2026-04,5100,787175,synthetic 2026-04 inference fixture-large
+gl_2026-04_05,2026-04,5100,349359,synthetic 2026-04 inference fixture-medium
+gl_2026-04_06,2026-04,5100,468620,synthetic 2026-04 inference fixture-small
+gl_2026-04_07,2026-04,5200,211327,synthetic 2026-04 cloud
+gl_2026-04_08,2026-04,5300,215760,synthetic 2026-04 support

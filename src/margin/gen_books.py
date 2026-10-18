@@ -106,7 +106,7 @@ def build_ctx(layout: Layout, config: Config, prices: Prices) -> Ctx:
     for j, price in enumerate(ordered):
         # Acme's markup runs from thin on the priciest model to rich on the cheapest, so a heavy
         # mix of expensive models is what pulls an account's margin down.
-        markup = Decimal("1.10") + Decimal("2.40") * j / (count - 1) if count > 1 else Decimal("2")
+        markup = Decimal("1.10") + Decimal("3.40") * j / (count - 1) if count > 1 else Decimal("2")
         blend = (3 * price.input_per_mtok + price.output_per_mtok) / 4
         acme[price.model] = max((blend * markup).quantize(Decimal("0.01"), ROUND_HALF_EVEN), Decimal("0.01"))
         cin[price.model] = float(price.input_per_mtok / acme[price.model])

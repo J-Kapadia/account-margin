@@ -282,13 +282,13 @@ def test_a_pool_with_cents_and_no_weight_is_reported_and_never_spread_by_another
 # ------------------------------------------------------------------ the loader and the CLI
 
 
-def test_absent_cost_books_and_prices_load_as_empty_tables(closed):
+def test_absent_cost_books_load_as_empty_tables_and_reference_prices_load(closed):
     with connect(str(closed.warehouse), read_only=True) as c:
         counts = {t: c.execute(f"SELECT count(*) FROM raw.{t}").fetchone()[0]
                   for t in ("cloud_focus", "provider_invoices", "support_tickets", "ref_model_prices",
                             "ref_support_rates")}
         flags = c.execute("SELECT DISTINCT flag FROM mart.fct_flags").fetchall()
-    assert counts == {"cloud_focus": 0, "provider_invoices": 0, "support_tickets": 0, "ref_model_prices": 0,
+    assert counts == {"cloud_focus": 0, "provider_invoices": 0, "support_tickets": 0, "ref_model_prices": 3,
                       "ref_support_rates": 3}
     assert flags == [("none",)]  # the small fixture has no costs, so nothing is below the floor
 
