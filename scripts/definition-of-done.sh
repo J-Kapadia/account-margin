@@ -56,6 +56,8 @@ uv run margin explain cp/2026-03/acct_0001/revenue --fixture small
 out=$(mktemp -d)
 work=$(mktemp -d)
 trap 'rm -rf "$out" "$work"' EXIT
+# The memo carries the scenario's numbers and refuses a month without them.
+uv run margin scenario --month 2026-03 --fixture small --config "$fixture_config"
 uv run margin memo --month 2026-03 --fixture small --out "$out"
 grep -rq data-num-id "$out"
 

@@ -24,6 +24,12 @@ def _states(warehouse):
         ).fetchall()
 
 
+def _scenario(warehouse, month):
+    """The scenario for `month`: `memo` refuses a month it has not run for."""
+    return margin("scenario", "--fixture", "mini", "--month", month, "--json", "--config", str(MINI_CONFIG),
+                  "--warehouse", str(warehouse))
+
+
 def _books_copy(tmp_path):
     """A private copy of the `mini` books and its manifest, to tamper with."""
     books = tmp_path / "b" / "books"
@@ -130,6 +136,7 @@ def test_a_gap_in_the_catch_up_names_the_first_month_without_books(tmp_path):
 def test_the_read_commands_accept_a_closed_month_and_refuse_an_open_one(mini_closed_copy, tmp_path):
     flags = ["--fixture", "mini", "--warehouse", str(mini_closed_copy), "--json"]
     assert margin("explain", "rollup/2026-04/revenue", *flags).code == 0
+    assert _scenario(mini_closed_copy, "2026-04").code == 0
     assert margin("memo", "--month", "2026-04", "--out", str(tmp_path / "s"), *flags).code == 0
     with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE state.close_state SET status = 'open' WHERE month = DATE '2026-04-01'")
@@ -202,6 +209,7 @@ def test_recompute_row_closed_restates_and_locked_or_open_exits_4(mini_closed_co
 def test_the_read_commands_accept_a_locked_month_and_explain_and_memo_refuse_an_open_one(mini_closed_copy, tmp_path):
     flags = ["--fixture", "mini", "--warehouse", str(mini_closed_copy), "--json"]
     _lock_all(mini_closed_copy)
+    assert _scenario(mini_closed_copy, "2026-03").code == 0
     before = _states(mini_closed_copy)
     assert margin("explain", "rollup/2026-03/revenue", *flags).code == 0
     assert margin("memo", "--month", "2026-03", "--out", str(tmp_path / "s"), *flags).code == 0

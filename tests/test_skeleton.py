@@ -7,7 +7,7 @@ from pathlib import Path
 from conftest import connect
 import pytest
 
-from conftest import MINI_CONFIG, Workspace, margin
+from conftest import FIXTURE_CONFIG, MINI_CONFIG, Workspace, margin
 from margin import explain as explain_mod
 from margin import memo as memo_mod
 from margin.books import write_manifest
@@ -136,7 +136,19 @@ def test_explain_detects_a_forged_digest(closed_copy):
     assert "digest mismatch" in result.json["message"]
 
 
+def scenario_copy(closed, tmp_path) -> Workspace:
+    """A private copy of the closed workspace with the scenario run: `memo` refuses a month without it."""
+    ws = Workspace(tmp_path / "scenario")
+    ws.root.mkdir()
+    shutil.copy(closed.warehouse, ws.warehouse)
+    result = margin("scenario", "--month", "2026-03", "--json", "--config", str(FIXTURE_CONFIG),
+                    *ws.warehouse_flags())
+    assert result.code == 0, result.stderr
+    return ws
+
+
 def test_memo_numbers_all_resolve_through_explain(closed, tmp_path):
+    closed = scenario_copy(closed, tmp_path)
     out = tmp_path / "site"
     assert margin("memo", "--month", "2026-03", "--out", str(out), *closed.warehouse_flags()).code == 0
     html = (out / "2026-03" / "index.html").read_text()
@@ -156,6 +168,7 @@ def test_memo_numbers_all_resolve_through_explain(closed, tmp_path):
 
 
 def test_memo_reports_what_is_built(closed, tmp_path):
+    closed = scenario_copy(closed, tmp_path)
     out = tmp_path / "site"
     margin("memo", "--month", "2026-03", "--out", str(out), *closed.warehouse_flags())
     html = (out / "2026-03" / "index.html").read_text()
@@ -167,16 +180,19 @@ def test_memo_reports_what_is_built(closed, tmp_path):
 
 
 def test_memo_has_no_naked_numerals(closed, tmp_path):
+    closed = scenario_copy(closed, tmp_path)
     out = tmp_path / "site"
     margin("memo", "--month", "2026-03", "--out", str(out), *closed.warehouse_flags())
     html = (out / "2026-03" / "index.html").read_text()
     body = re.sub(r"<style.*?</style>", "", html, flags=re.S)
     body = re.sub(r"<span data-num-id.*?</span>", "", body)
+    body = re.sub(r'<span data-literal="cite".*?</span>', "", body)
     # Identifiers are labels, not figures: account IDs and the GL code column.
     body = re.sub(r"acct_\d{4}", "", body)
     body = re.sub(r"<td>(?:4000|4100|4900)</td>", "", body)
     text = re.sub(r"<[^>]+>", " ", body)
     text = re.sub(r"\b\d{4}-\d{2}\b", " ", text)  # the month label is an ISO date
+    text = re.sub(r"\bQ[1-4]\b", " ", text)  # the scenario's quarter labels
     assert not re.findall(r"\d", text), "a numeral outside the number registry"
 
 

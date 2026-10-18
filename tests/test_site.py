@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import connect, margin, shared_dir
+from conftest import MINI_CONFIG, connect, margin, shared_dir
 from margin import memo as memo_mod
 from margin import prov
 
@@ -32,9 +32,22 @@ def build_site(warehouse: Path, out: Path, month: str = MONTH) -> None:
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory, mini_closed) -> Path:
+def mini_scenario(tmp_path_factory, mini_closed) -> Path:
+    """A copy of the closed `mini` warehouse with the scenario run for both memo months; read-only for the tests."""
+    def build(directory: Path) -> None:
+        shutil.copy(mini_closed, directory / "w.duckdb")
+        for month in (MONTH, NEXT):
+            result = margin("scenario", "--fixture", "mini", "--month", month, "--json", "--config", str(MINI_CONFIG),
+                            "--warehouse", str(directory / "w.duckdb"))
+            assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "mini_scenario_months", build) / "w.duckdb"
+
+
+@pytest.fixture(scope="module")
+def site(tmp_path_factory, mini_scenario) -> Path:
     """The site after a memo for 2026-03; read-only for the tests."""
-    return shared_dir(tmp_path_factory, "site", lambda d: build_site(mini_closed, d))
+    return shared_dir(tmp_path_factory, "site", lambda d: build_site(mini_scenario, d))
 
 
 @pytest.fixture(scope="module")
@@ -133,20 +146,22 @@ def test_compiled_sql_is_the_stored_model(site, mini_closed):
     assert (site / "sql" / "fct_contribution_profit.sql").read_text() == stored
 
 
-def test_the_indexes_list_the_months_with_a_memo(tmp_path, mini_closed):
+def test_the_indexes_list_the_months_with_a_memo(tmp_path, mini_scenario):
     out = tmp_path / "site"
-    build_site(mini_closed, out)
-    build_site(mini_closed, out, NEXT)
+    build_site(mini_scenario, out)
+    build_site(mini_scenario, out, NEXT)
     for text in ((out / "index.html").read_text(), (out / "llms.txt").read_text()):
         assert MONTH in text and NEXT in text
     assert "[values 2026-04](2026-04/values.csv)" in (out / "llms.txt").read_text()
     shutil.rmtree(out / MONTH)
-    build_site(mini_closed, out, NEXT)
+    build_site(mini_scenario, out, NEXT)
     for text in ((out / "index.html").read_text(), (out / "llms.txt").read_text()):
         assert NEXT in text and MONTH not in text
 
 
-def test_memo_exits_4_without_the_stored_sql(tmp_path, mini_closed_copy):
+def test_memo_exits_4_without_the_stored_sql(tmp_path, mini_scenario):
+    mini_closed_copy = tmp_path / "w.duckdb"
+    shutil.copy(mini_scenario, mini_closed_copy)
     with connect(str(mini_closed_copy)) as con:
         con.execute("DROP TABLE state.model_sql")
     result = margin("memo", "--month", MONTH, "--out", str(tmp_path / "site"), "--warehouse", str(mini_closed_copy))

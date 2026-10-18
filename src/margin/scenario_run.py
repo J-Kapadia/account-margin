@@ -75,7 +75,8 @@ def _write_inputs(
     con.execute("BEGIN")
     try:
         con.execute("DELETE FROM scenario.inputs WHERE month = ?", [month_date(month)])
-        con.executemany("INSERT INTO scenario.inputs VALUES (?, ?, ?, ?, ?)", rows)
+        if rows:  # a month with no flagged account has nothing to scale
+            con.executemany("INSERT INTO scenario.inputs VALUES (?, ?, ?, ?, ?)", rows)
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")

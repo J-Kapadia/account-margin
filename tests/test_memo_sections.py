@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from html.parser import HTMLParser
+from pathlib import Path
 
 import pytest
 
-from conftest import MINI_TRUTH, connect, margin, shared_dir
+from conftest import MINI_CONFIG, MINI_TRUTH, connect, margin, shared_dir
 from margin import explain as explain_mod
 from margin import memo as memo_mod
 from margin import prov
@@ -32,12 +34,25 @@ HEADINGS = [
 ]
 MONTH_NAMES = ("January|February|March|April|May|June|July|August|September|October|November|December")
 NUM_SPAN = re.compile(r'<span data-num-id="([^"]+)" data-value="([^"]+)">(.*?)</span>')
+CITE_SPAN = re.compile(r'<span data-literal="cite" data-ref-id="([^"]+)">.*?</span>')
 
 
 @pytest.fixture(scope="module")
-def page(tmp_path_factory, mini_closed) -> str:
+def mini_scenario(tmp_path_factory, mini_closed) -> Path:
+    """A copy of the closed `mini` warehouse with the scenario run for 2026-03; read-only for the tests."""
+    def build(directory: Path) -> None:
+        shutil.copy(mini_closed, directory / "w.duckdb")
+        result = margin("scenario", "--fixture", "mini", "--month", "2026-03", "--json", "--config", str(MINI_CONFIG),
+                        "--warehouse", str(directory / "w.duckdb"))
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "mini_scenario", build) / "w.duckdb"
+
+
+@pytest.fixture(scope="module")
+def page(tmp_path_factory, mini_scenario) -> str:
     def build(directory):
-        result = margin("memo", "--month", MONTH, "--out", str(directory), "--warehouse", str(mini_closed))
+        result = margin("memo", "--month", MONTH, "--out", str(directory), "--warehouse", str(mini_scenario))
         assert result.code == 0, result.stderr
 
     return (shared_dir(tmp_path_factory, "memo_sections", build) / MONTH / "index.html").read_text()
@@ -81,16 +96,19 @@ def number(row: str, prefix: str) -> tuple[str, str]:
     raise AssertionError(f"no {prefix} in {row}")
 
 
-def naked_numerals(html: str) -> list[str]:
-    """Numerals left in the page text once the number registry's spans and the allowed labels
-    (account IDs, GL codes, ISO months, month names, n/a) are removed."""
+def naked_numerals(html: str, known: frozenset[str] = frozenset()) -> list[str]:
+    """Numerals left in the page text once the number registry's spans, the cite spans of the `known`
+    record IDs and the allowed labels (account IDs, GL codes, ISO months, month names, quarter
+    labels, n/a) are removed."""
     body = re.sub(r"<style.*?</style>", "", html, flags=re.S)
     body = NUM_SPAN.sub("", body)
+    body = CITE_SPAN.sub(lambda m: "" if m.group(1) in known else m.group(0), body)
     body = re.sub(r"acct_\d{4}", "", body)
     body = re.sub(r"<td>(?:4000|4100|4900)</td>", "", body)
     text = re.sub(r"<[^>]+>", " ", body)
     text = re.sub(r"\b\d{4}-\d{2}\b", " ", text)
     text = re.sub(rf"\b(?:{MONTH_NAMES})\b(?:\s+\d{{4}})?", " ", text)
+    text = re.sub(r"\bQ[1-4]\b", " ", text)
     text = text.replace("n/a", " ")
     return re.findall(r".{0,20}\d.{0,20}", text)
 
@@ -206,10 +224,10 @@ def test_the_appendix_holds_exactly_the_agreement_set(page, mart):
     assert set(ids) == expected
 
 
-def test_every_number_resolves_through_explain_with_its_value(page, mini_closed):
+def test_every_number_resolves_through_explain_with_its_value(page, mini_scenario):
     found = {(i, v) for i, v, _ in NUM_SPAN.findall(page)}
     assert len(found) > 7 * 12
-    with connect(str(mini_closed), read_only=True) as con:
+    with connect(str(mini_scenario), read_only=True) as con:
         for number_id, value in sorted(found):
             node = explain_mod.explain(con, number_id)
             assert node["digest_verified"], number_id
@@ -217,14 +235,21 @@ def test_every_number_resolves_through_explain_with_its_value(page, mini_closed)
             assert str(expected) == value, number_id
 
 
-def test_no_numeral_stands_outside_the_number_registry(page):
-    assert naked_numerals(page) == []
-    assert naked_numerals("<p>March 2026, n/a, acct_0001, 2026-03</p>") == []
+def test_no_numeral_stands_outside_the_number_registry(page, mini_scenario):
+    with connect(str(mini_scenario), read_only=True) as con:
+        known = frozenset(r[0] for r in con.execute("SELECT number_id FROM prov.records").fetchall())
+    assert naked_numerals(page, known) == []
+    assert naked_numerals("<p>March 2026, n/a, acct_0001, 2026-03, Q1 and Q4</p>") == []
     assert naked_numerals("<p>about 42 accounts</p>")
+    cite = '<span data-literal="cite" data-ref-id="ref/list_price_series/large">7.5000</span>'
+    assert naked_numerals(f"<p>{cite}</p>", frozenset({"ref/list_price_series/large"})) == []
+    assert naked_numerals(f"<p>{cite}</p>")  # a cite span with no record behind it is a naked numeral
 
 
-def test_a_script_in_a_display_name_is_escaped(mini_closed_copy, tmp_path):
+def test_a_script_in_a_display_name_is_escaped(mini_scenario, tmp_path):
     hostile = "<script>alert(1)</script>"
+    mini_closed_copy = tmp_path / "w.duckdb"
+    shutil.copy(mini_scenario, mini_closed_copy)
     with connect(str(mini_closed_copy)) as con:
         con.execute("UPDATE raw.accounts SET display_name = ? WHERE account_id = 'acct_0006'", [hostile])
     result = margin("memo", "--month", MONTH, "--out", str(tmp_path / "site"), "--warehouse", str(mini_closed_copy))

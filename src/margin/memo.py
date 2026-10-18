@@ -17,6 +17,7 @@ import csv
 import io
 import json
 import re
+from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 
 import duckdb
@@ -24,7 +25,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 from markupsafe import Markup, escape
 
-from . import prov
+from . import prov, scenario
 from . import explain as explain_mod
 from .dbt_runner import PUBLISHED_MODEL
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, MarginError
@@ -39,6 +40,7 @@ EXPLAIN_ROWS = 25
 OWNER = "finance owner (synthetic)"
 DEFINITION = "contribution profit in cents is `contribution_cents()` in dbt/macros/contribution_cents.sql"
 NUM_ID = re.compile(r'data-num-id="([^"]+)"')
+CITE_ID = re.compile(r'data-ref-id="([^"]+)"')
 MONTH_DIR = re.compile(r"\d{4}-\d{2}")
 # The action for each firm-flagged account, by reason code: (machine key, text shown).
 REPRICE_AT_RENEWAL = ("reprice_at_renewal", "Reprice at renewal")
@@ -50,11 +52,29 @@ ACTIONS = {"DEEP_DISCOUNT": REPRICE_AT_RENEWAL, "DEDICATED_CLOUD": REPRICE_AT_RE
 
 
 def _registry(con: duckdb.DuckDBPyConnection, month: str) -> dict[str, dict]:
+    """The month's records (the `scenario/` ones carry the base month) and the month-less
+    list-price series records the scenario's trend is cited from."""
     rows = con.execute(
-        "SELECT number_id, value_cents, value_text, unit FROM prov.records WHERE month = ?",
+        "SELECT number_id, value_cents, value_text, unit FROM prov.records "
+        "WHERE month = ? OR starts_with(number_id, 'ref/list_price_series/')",
         [f"{month}-01"],
     ).fetchall()
     return {r[0]: {"value_cents": r[1], "value_text": r[2], "unit": r[3]} for r in rows}
+
+
+def _record(registry: dict[str, dict], number_id: str) -> dict:
+    rec = registry.get(number_id)
+    if rec is None:
+        raise MarginError(
+            EXIT_CONTROL, f"memo uses {number_id}, which has no provenance record",
+            failed_controls=[{"id": "CHK-MEMO-NUM", "violating_rows": 1, "detail": [number_id]}],
+        )
+    return rec
+
+
+def _percent(ratio: str) -> str:
+    """A ratio as a percentage to two places, half-even: `-0.0231` is `-2.31%`."""
+    return f"{(Decimal(ratio) * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)}%"
 
 
 def make_env(registry: dict[str, dict]) -> Environment:
@@ -65,21 +85,25 @@ def make_env(registry: dict[str, dict]) -> Environment:
     )
 
     def span(number_id: str, suffix: str = "") -> Markup:
-        rec = registry.get(number_id)
-        if rec is None:
-            raise MarginError(
-                EXIT_CONTROL, f"memo uses {number_id}, which has no provenance record",
-                failed_controls=[{"id": "CHK-MEMO-NUM", "violating_rows": 1, "detail": [number_id]}],
-            )
+        rec = _record(registry, number_id)
         cents = rec["value_cents"]
         value = cents if cents is not None else rec["value_text"]
         shown = format_cents(cents) if cents is not None and rec["unit"] == "cents" else rec["value_text"]
+        if rec["unit"] == "ratio":
+            shown = _percent(shown)
         if suffix and shown != "n/a":
             shown = f"{shown}{suffix}"
         return Markup('<a href="../explain/{}.html"><span data-num-id="{}" data-value="{}">{}</span></a>').format(
             number_id, number_id, str(value), shown)
 
+    def cite(text: str, number_id: str) -> Markup:
+        """A literal quoted from a reference row: not a computed number, but tied to the record it came from."""
+        _record(registry, number_id)
+        return Markup('<a href="../explain/{}.html"><span data-literal="cite" data-ref-id="{}">{}</span></a>').format(
+            number_id, number_id, text)
+
     env.filters["num"] = span
+    env.filters["cite"] = lambda text, number_id: cite(text, number_id)
     env.filters["pct"] = lambda number_id: span(number_id, "%")
     return env
 
@@ -88,7 +112,7 @@ def empty_sections() -> dict:
     """The per-section data of a month with nothing in it; `render` fills what a caller leaves out."""
     return {
         "top": [], "bottom": [], "firm": [], "soft": [], "zero_revenue": [], "actions": [],
-        "rules": [], "recommended": "", "spread": [], "changes": [], "controls": [],
+        "rules": [], "recommended": "", "spread": [], "changes": [], "controls": [], "scenario": None,
     }
 
 
@@ -130,6 +154,30 @@ def _allocation(con: duckdb.DuckDBPyConnection, month: str) -> tuple[str, list[s
         "SELECT DISTINCT rule FROM mart.fct_contribution_by_rule WHERE month = ? ORDER BY rule",
         [f"{month}-01"]).fetchall()]
     return recommended, rules
+
+
+def _scenario(month: str, accounts: list[dict], registry: dict[str, dict]) -> dict:
+    """The scenario section's data: the list-price trend of each tier at the series' first and last
+    period, cited from its `ref/` record, and for each case the firm and soft accounts. IDs and labels."""
+    first, last = scenario.PERIODS[0], scenario.PERIODS[-1]
+    trend = []
+    for tier in scenario.TIERS:
+        ref = f"ref/list_price_series/{tier}"
+        rows = {r["period"]: r for r in json.loads(_record(registry, ref)["value_text"])}
+        trend.append({
+            "tier": tier, "ref": ref,
+            **{key: {"price": f"{scenario.tier_price(rows[period]):.4f}", "source_url": rows[period]["source_url"],
+                     "retrieved_on": rows[period]["retrieved_on"]} for key, period in (("first", first), ("last", last))},
+        })
+    return {
+        "first": first, "last": last, "trend": trend,
+        "cases": [
+            {"case": case, "firm": [a for a in accounts if a["flag"] == "firm"],
+             "soft": [a for a in accounts if a["flag"] == "soft"]}
+            for case in scenario.CASES
+        ],
+        "quarters": [f"Q{q}" for q in range(1, len(scenario.QUARTER_END_K) + 1)],
+    }
 
 
 def _controls(con: duckdb.DuckDBPyConnection, month: str) -> list[str]:
@@ -180,6 +228,7 @@ def gather(con: duckdb.DuckDBPyConnection, month: str, registry: dict[str, dict]
             for rule in rules if rule != recommended
         ],
         "controls": _controls(con, month),
+        "scenario": _scenario(month, accounts, registry),
     }
     return accounts, sections
 
@@ -287,11 +336,15 @@ def _write(path: Path, text: str, written: list[Path]) -> None:
 def build(con: duckdb.DuckDBPyConnection, month: str, out: Path) -> list[Path]:
     """Render the month's page and its explain pages, values and the site files into `out`;
     return the files written. The root index and `llms.txt` list the months found in `out`."""
+    (scenario_records,) = con.execute(
+        "SELECT count(*) FROM prov.records WHERE starts_with(number_id, ?)", [f"scenario/{month}/"]).fetchone()
+    if not scenario_records:
+        raise MarginError(EXIT_PRECONDITION, f"scenario not run for month {month}", month=month)
     sql = _compiled_sql(con)
     registry = _registry(con, month)
     accounts, sections = gather(con, month, registry)
     html = render(month, accounts, registry, sections)
-    pages = _pages(con, month, set(NUM_ID.findall(html)))
+    pages = _pages(con, month, set(NUM_ID.findall(html)) | set(CITE_ID.findall(html)))
     written: list[Path] = []
     for number_id, text in pages.items():
         _write(out / "explain" / f"{number_id}.html", text, written)

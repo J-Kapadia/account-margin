@@ -186,7 +186,84 @@ account churn. With revenue at or above it: reprice.</li>
 
 <section id="scenario">
 <h2>Token-price scenario</h2>
-<p>This section is added in a later release of the memo.</p>
+{% if scenario %}
+<p>This section asks what would happen to the flagged accounts if the price of model inference kept falling
+at the pace it has fallen. It applies a real published trend to the synthetic accounts of {{ month }}: an
+illustrative what-if relative to {{ month }}, not a forecast made then.</p>
+
+<h3>The trend</h3>
+<p>The series is the blended list price per million tokens of three model tiers, each tier at the newest
+generally available model of one vendor's line, read from the vendor's own price page. Input tokens count
+three times and output tokens once, and the tiers count equally. Every price below is cited to the row it was
+read from, with the page it came from and the date it was retrieved.</p>
+<div class="scroll"><table id="price-trend">
+<thead><tr><th>Tier</th><th class="n">Price in {{ scenario.first }}</th><th>Source</th>
+<th class="n">Price in {{ scenario.last }}</th><th>Source</th><th>Retrieved</th></tr></thead>
+<tbody>
+{% for t in scenario.trend %}
+<tr data-tier="{{ t.tier }}"><td>{{ t.tier }}</td>
+<td class="n">{{ t.first.price | cite(t.ref) }}</td><td><a href="{{ t.first.source_url }}">price page</a></td>
+<td class="n">{{ t.last.price | cite(t.ref) }}</td><td><a href="{{ t.last.source_url }}">price page</a></td>
+<td>{{ t.last.retrieved_on | cite(t.ref) }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+
+<h3>Method</h3>
+<p>The blended price changed by <strong>{{ ('scenario/' ~ month ~ '/summary/computed_change') | num }}</strong>
+between {{ scenario.first }} and {{ scenario.last }}, a compound monthly rate of
+<strong>{{ ('scenario/' ~ month ~ '/summary/monthly_rate') | num }}</strong> over the six months. The
+scenario applies that rate to each flagged account's inference cost month by month, holding volume,
+revenue, support, cloud cost and Acme's own prices at their {{ month }} values. It runs the rate at full
+persistence, at half of it and at none. An account below the floor under the signed rule recovers in the first
+quarter, counted from the month after {{ month }}, whose last month puts it above the floor.</p>
+
+<h3>Output</h3>
+<p>The scenario covers the <strong>{{ rollup('accounts_firm') }}</strong> accounts flagged firm and, listed
+separately below each firm table, the <strong>{{ rollup('accounts_soft') }}</strong> flagged soft. The counts
+here include both kinds.</p>
+<div class="scroll"><table id="scenario-recovered">
+<thead><tr><th>Case</th><th class="n">Persistence</th>{% for q in scenario.quarters %}<th class="n">Recovered by {{ q }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for c in scenario.cases %}
+<tr data-case="{{ c.case }}"><td>{{ c.case }}</td>
+<td class="n">{{ ('scenario/' ~ month ~ '/' ~ c.case ~ '/summary/persistence_pct') | pct }}</td>
+{% for q in scenario.quarters %}<td class="n">{{ ('scenario/' ~ month ~ '/' ~ c.case ~ '/summary/accounts_recovered_' ~ q) | num }}</td>
+{% endfor %}</tr>
+{% endfor %}
+</tbody>
+</table></div>
+
+{% for c in scenario.cases %}
+<h3>Case {{ c.case }}</h3>
+{% for title, kind, rows in (('Firm-flagged accounts', 'firm', c.firm), ('Soft-flagged accounts', 'soft', c.soft)) %}
+<h4>{{ title }}</h4>
+{% if rows %}
+<div class="scroll"><table id="scenario-{{ kind }}-{{ c.case }}">
+<thead><tr><th>Account</th><th>Name</th><th>Flag and reason</th><th>Recovery quarter</th>{% for q in scenario.quarters %}<th class="n">Margin at the end of {{ q }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for a in rows %}
+<tr data-account="{{ a.account_id }}"><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>
+<td>{{ ('flag/' ~ month ~ '/' ~ a.account_id) | num }}</td>
+<td>{{ ('scenario/' ~ month ~ '/' ~ c.case ~ '/summary/' ~ a.account_id ~ '/recovery_quarter') | num }}</td>
+{% for q in scenario.quarters %}<td class="n">{{ ('scenario/' ~ month ~ '/' ~ c.case ~ '/' ~ q ~ '/' ~ a.account_id ~ '/margin_pct') | pct }}</td>
+{% endfor %}</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p>No account is flagged {{ kind }} this month.</p>
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+<h3>What this does not show</h3>
+<p>The series is a blend of model vendors' list prices with fixed weights. It is not Acme's per-model price
+and not any customer's cost. The scenario applies a real published trend to synthetic accounts: it is an
+illustrative what-if relative to {{ month }}, not a forecast made then.</p>
+{% else %}
+<p>The scenario has not been run for this month.</p>
+{% endif %}
 </section>
 
 <section id="build-vs-buy">

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import connect, margin, shared_dir
+from conftest import MINI_CONFIG, connect, margin, shared_dir
 from margin import agreement
 from margin.cli import explain
 
@@ -26,7 +26,13 @@ HOLDER = (
 def site(tmp_path_factory, mini_closed) -> Path:
     """The site after a memo for 2026-03; read-only for the tests."""
     def build(directory: Path) -> None:
-        result = margin("memo", "--month", MONTH, "--out", str(directory), "--warehouse", str(mini_closed))
+        # `memo` refuses a month without scenario records: run the scenario on a private copy
+        warehouse = directory.parent / f"{directory.name}-w.duckdb"
+        shutil.copy(mini_closed, warehouse)
+        result = margin("scenario", "--fixture", "mini", "--month", MONTH, "--config", str(MINI_CONFIG),
+                        "--warehouse", str(warehouse))
+        assert result.code == 0, result.stderr
+        result = margin("memo", "--month", MONTH, "--out", str(directory), "--warehouse", str(warehouse))
         assert result.code == 0, result.stderr
 
     return shared_dir(tmp_path_factory, "agreement-site", build)

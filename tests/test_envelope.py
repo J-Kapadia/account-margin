@@ -6,7 +6,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from conftest import margin
+from conftest import FIXTURE_CONFIG, margin
 
 SCHEMA = json.loads(
     (Path(__file__).resolve().parents[1] / "src/margin/schemas/envelope.schema.json").read_text()
@@ -35,11 +35,15 @@ def test_close_envelope(closed_copy):
     assert len(env["result_hash"]) == 64
 
 
-def test_explain_and_memo_envelopes(closed, tmp_path):
-    env = validate(margin("explain", "rollup/2026-03/revenue", "--json", *closed.warehouse_flags()).json)
+def test_explain_and_memo_envelopes(closed_copy, tmp_path):
+    env = validate(margin("explain", "rollup/2026-03/revenue", "--json", *closed_copy.warehouse_flags()).json)
     assert env["number_id"] == "rollup/2026-03/revenue"
+    # the memo refuses a month the scenario has not run for
+    scenario = margin("scenario", "--month", "2026-03", "--json", "--config", str(FIXTURE_CONFIG),
+                      *closed_copy.warehouse_flags())
+    assert scenario.code == 0, scenario.stderr
     env = validate(
-        margin("memo", "--month", "2026-03", "--out", str(tmp_path), "--json", *closed.warehouse_flags()).json
+        margin("memo", "--month", "2026-03", "--out", str(tmp_path), "--json", *closed_copy.warehouse_flags()).json
     )
     assert env["files"]
 
