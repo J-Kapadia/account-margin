@@ -87,6 +87,15 @@ if [ "$rc" -ne 3 ] || ! grep -q '"id": "CTL-SIGN"' "$work/injected.json"; then
   exit 1
 fi
 
+# Roll forward on a fresh `mini` warehouse: close March, lock it and load April, close and check April,
+# list the months, and re-close April with --recompute (it stores the same hash and the old one as restated_from).
+roll="$work/roll.duckdb"
+uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$roll" --json
+uv run margin rollforward --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$roll" --json
+uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$roll" --check --json
+uv run margin status --fixture mini --warehouse "$roll"
+uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$roll" --recompute --json
+
 if [ "$fast" -eq 1 ]; then
   uv run pytest -q -m "not slow"
 else

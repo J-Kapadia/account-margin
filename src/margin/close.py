@@ -80,16 +80,43 @@ def _changed_month_error(
     )
 
 
-def close_month(paths: Paths, month: str, *, check: bool = False) -> dict:
+def _require_recomputable(paths: Paths, month: str) -> None:
+    """`--recompute` applies to a `closed` month only; the warehouse is opened read-only, and not at all if absent."""
+    row = None
+    if paths.warehouse.is_file():
+        con = connect(paths.warehouse, read_only=True)
+        try:
+            row = con.execute(
+                "SELECT status FROM state.close_state WHERE month = ?", [month_date(month)]
+            ).fetchone()
+        except duckdb.CatalogException:  # a file that never held a close
+            row = None
+        finally:
+            con.close()
+    if row is not None and row[0] == "locked":
+        raise MarginError(
+            EXIT_PRECONDITION, f"month {month} is locked: --recompute applies to a closed month", month=month
+        )
+    if row is None or row[0] != "closed":
+        raise MarginError(EXIT_PRECONDITION, f"month {month} not closed", month=month)
+
+
+def close_month(paths: Paths, month: str, *, check: bool = False, recompute: bool = False) -> dict:
     """Close `month` (and any earlier month of the window); return the envelope fields.
 
     With `check`, the target month is compared with the answer key before it is marked closed;
     a mismatch leaves it unclosed. On a month already closed the comparison is a read.
+
+    With `recompute`, the target month must be `closed`: its records are rewritten and the new
+    result hash is stored with `restated_from` set to the previous one, without comparing them.
+    With `check` too, the answer-key comparison runs on the new result before it is stored.
     """
     if check:
         check_mod.require_truth(paths.truth, month=month)
     first, _ = check_in_window(paths.books, month)
     sign = signoff.verify(paths.config, month=month)  # exit 4 before anything is read or written
+    if recompute:
+        _require_recomputable(paths, month)
     months = months_between(first, month)
     for m in months:  # every month the close will touch has books, checked before any write
         if not load.books_have_rows(paths.books, m):
@@ -113,7 +140,9 @@ def close_month(paths: Paths, month: str, *, check: bool = False) -> dict:
         stored = con.execute(
             "SELECT status FROM state.close_state WHERE month = ?", [month_date(month)]
         ).fetchone()
-        read_only_check = check and stored is not None and stored[0] in ("closed", "locked")
+        read_only_check = (
+            check and not recompute and stored is not None and stored[0] in ("closed", "locked")
+        )
     finally:
         con.close()  # dbt needs the file: margin holds no connection while it runs
 
@@ -126,14 +155,23 @@ def close_month(paths: Paths, month: str, *, check: bool = False) -> dict:
             result = _close_one(
                 con, m, run_id, sign, config, known, catch_up=m != month,
                 truth=paths.truth if check and m == month else None,
+                recompute=recompute and m == month,
             )
         # The month-less records describe the files this run loaded; they sit outside result_hash.
         # A `--check` of a month already closed changes no state, so it leaves them as they are.
         if not read_only_check:
             _write(con, prov.reference_records(con, run_id=run_id, signoff=sign))
+        if recompute:
+            result = {**result, "restated_from": _restated_from(con, month)}
         return result
     finally:
         con.close()
+
+
+def _restated_from(con: duckdb.DuckDBPyConnection, month: str) -> str | None:
+    return con.execute(
+        "SELECT restated_from FROM state.close_state WHERE month = ?", [month_date(month)]
+    ).fetchone()[0]
 
 
 def _write(con: duckdb.DuckDBPyConnection, records: list[dict]) -> None:
@@ -148,7 +186,7 @@ def _write(con: duckdb.DuckDBPyConnection, records: list[dict]) -> None:
 
 def _close_one(
     con: duckdb.DuckDBPyConnection, month: str, run_id: str, sign: signoff.Signoff, config,
-    known: dict[str, dict], *, catch_up: bool, truth: Path | None = None,
+    known: dict[str, dict], *, catch_up: bool, truth: Path | None = None, recompute: bool = False,
 ) -> dict:
     gate = {"id": signoff.GATE_ID, "status": "pass", "violating_rows": 0, "detail": []}
     controls.record(con, month, run_id, gate)
@@ -166,7 +204,7 @@ def _close_one(
         "SELECT status, result_hash, input_digest FROM state.close_state WHERE month = ?",
         [month_date(month)],
     ).fetchone()
-    if stored is not None and stored[0] in ("closed", "locked"):
+    if stored is not None and stored[0] in ("closed", "locked") and not recompute:
         # A closed or locked month whose recomputed inputs or result differ is a failure, not a
         # rewrite. A locked month is never restated: the fix is an entry in the open month.
         status = stored[0]
@@ -194,7 +232,9 @@ def _close_one(
         return outcome
     # No row, or an `open` one: the records are written first and checked as stored (CTL-PROV),
     # then the close controls run; a failure of either rolls the records back and leaves the month
-    # open. Then it goes open -> closed with its records, in one transaction.
+    # open. Then it goes open -> closed with its records, in one transaction. A recompute takes the
+    # same path from a closed month and keeps the hash it replaces as `restated_from`.
+    restated_from = stored[1] if recompute else None
     verdict = None
     con.execute("BEGIN")
     try:
@@ -207,8 +247,8 @@ def _close_one(
             raise _fail_provenance(month, results, verdict)
         controls.record(con, month, run_id, verdict)
         con.execute(
-            "INSERT OR REPLACE INTO state.close_state VALUES (?, 'closed', ?, ?, ?, NULL)",
-            [month_date(month), prov.month_input_digest(records), new_hash, run_id],
+            "INSERT OR REPLACE INTO state.close_state VALUES (?, 'closed', ?, ?, ?, ?)",
+            [month_date(month), prov.month_input_digest(records), new_hash, run_id, restated_from],
         )
         con.execute("COMMIT")
     except Exception:

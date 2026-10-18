@@ -1,4 +1,4 @@
-"""The `margin` command line: gen, close, explain, memo, agreement.
+"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement.
 
 Every command takes the path flags and `--json`; an error becomes a failure
 envelope and the exit code of the error contract (see errors.py).
@@ -21,6 +21,7 @@ from . import rollforward as rollforward_mod
 from . import scenario_check as scenario_check_mod
 from . import scenario_run as scenario_mod
 from . import signoff as signoff_mod
+from . import status as status_mod
 from .errors import (
     EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
 )
@@ -162,15 +163,20 @@ def gen(paths: Paths, seed: int, out: Path | None, accounts: int | None, months:
 @click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
               help="Month to close, YYYY-MM.")
 @click.option("--check", is_flag=True, help="Compare with the answer key (truth/).")
+@click.option("--recompute", is_flag=True, help="Re-close a closed (not locked) month whose model code "
+              "was fixed: store the new result hash and the old one as restated_from.")
 @common_options("books", "truth", "warehouse", "config")
-def close(paths: Paths, month: str, check: bool):
+def close(paths: Paths, month: str, check: bool, recompute: bool):
     """Compute, control and record a month, closing earlier months first."""
     if check:
         check_mod.require_truth(paths.truth, month=month)  # before the lock and before any write
     with warehouse_lock(paths.lock, exclusive=True):
-        result = close_mod.close_month(paths, month, check=check)
-    return {"month": result["month"], "controls": result["controls"],
-            "result_hash": result["result_hash"]}, [f"closed {month}" + (" (checked against the answer key)" if check else "")]
+        result = close_mod.close_month(paths, month, check=check, recompute=recompute)
+    fields = {"month": result["month"], "controls": result["controls"], "result_hash": result["result_hash"]}
+    if recompute:
+        fields["restated_from"] = result["restated_from"]
+    return fields, [f"closed {month}" + (" (recomputed)" if recompute else "")
+                    + (" (checked against the answer key)" if check else "")]
 
 
 @main.command()
@@ -191,6 +197,20 @@ def _require_warehouse(paths: Paths) -> None:
         raise MarginError(
             EXIT_PRECONDITION, f"no warehouse at {paths.warehouse}: run margin close first"
         )
+
+
+@main.command()
+@common_options("warehouse")
+def status(paths: Paths):
+    """List the months of the warehouse with their state and result hash."""
+    _require_warehouse(paths)
+    with warehouse_lock(paths.lock, exclusive=False):
+        con = connect(paths.warehouse, read_only=True)
+        try:
+            months = status_mod.status(con)
+        finally:
+            con.close()
+    return {"months": months}, status_mod.render(months)
 
 
 @main.command()

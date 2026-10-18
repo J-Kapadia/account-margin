@@ -8,7 +8,7 @@ Everything is synthetic. The books belong to "Acme AI", a generated usage-priced
 
 ## Status
 
-Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Still to come: roll-forward and month locking, the token-price scenario, the full memo site, `agreement`, `doctor` and `status`.
+Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Roll-forward and month locking (`rollforward`, `close --recompute` and `status`) are built too. Still to come: the token-price scenario, the full memo site, `agreement` and `doctor`.
 
 The production allocation and policy configs are not signed yet, so run it today on the committed `mini` fixture (12 accounts, February to April 2026), which carries its own signed configs:
 
@@ -16,11 +16,15 @@ The production allocation and policy configs are not signed yet, so run it today
 uv sync --frozen
 export MARGIN_SIGNOFF_DIR=tests/fixtures/signoff
 uv run margin close --fixture mini --config tests/fixtures/config --month 2026-04 --check
+uv run margin close --fixture mini --config tests/fixtures/config --month 2026-03 --warehouse warehouse/roll.duckdb
+uv run margin rollforward --fixture mini --config tests/fixtures/config --month 2026-04 --warehouse warehouse/roll.duckdb
+uv run margin close --fixture mini --config tests/fixtures/config --month 2026-04 --check --warehouse warehouse/roll.duckdb
+uv run margin status --fixture mini --warehouse warehouse/roll.duckdb
 uv run margin explain cp/2026-03/acct_0001/contribution_profit --fixture mini
 uv run pytest -q tests/test_injected_errors.py
 ```
 
-The close runs every earlier month first, passes every control and matches the answer key; `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it.
+The first close runs every earlier month first, passes every control and matches the answer key; the roll-forward sequence on its own warehouse closes March, locks February and March while loading April, closes and checks April, and `status` lists February and March as `locked` and April as `closed` with their result hashes (`close --recompute` re-closes a `closed` month whose model code was fixed, storing the new hash and the old one as `restated_from`; on a `locked` month it exits 4); `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it.
 
 ## What it does
 
@@ -29,10 +33,10 @@ The close runs every earlier month first, passes every control and matches the a
 - Allocates shared cloud cost under three rules, and flags accounts below a margin floor as *firm* (below under every rule) or *soft* (below under some), each with a reason code.
 - Catches injected errors (duplicate invoice, cutoff slip, double-counted shared cost, sign flip, one-cent rounding slip) by naming the control that fails.
 - Attaches a provenance record to every number, so `margin explain <number-id>` prints the chain down to the source rows.
+- Rolls a month forward: `rollforward` locks every earlier closed month and loads the next month's books in one transaction, and `status` lists each month's state and result hash.
 
 Planned, not built yet:
 
-- Roll-forward: lock the prior month's inputs and results, load the next month, and close it.
 - A token-price scenario that applies a published list-price trend to the synthetic accounts.
 - A static memo with agent-readable data (`llms.txt`, the model's SQL and a cached values file per month), and an `agreement` check that the CLI, SQL, memo and cached values return the same answer for every number.
 
@@ -60,15 +64,16 @@ uv run margin agreement --month 2026-03 --check
 | Command | Purpose |
 |---|---|
 | `margin gen` | Generate the books and the answer key from a seed, or verify them (`--verify`) |
-| `margin close` | Compute, control and check a month, closing earlier months first |
-| `margin rollforward` | (planned) Lock the prior month and load the next |
+| `margin close` | Compute, control and check a month, closing earlier months first; `--recompute` re-closes a closed month |
+| `margin rollforward` | Lock every earlier closed month and load the next |
 | `margin explain` | Print the provenance chain of a number |
 | `margin inject` | Copy the books with one seeded error |
 | `margin scenario` | (planned) Token-price scenario |
 | `margin memo` | (planned) Build the memo and explain pages as a static site |
 | `margin agreement` | (planned) Ask every interface for every number and report any disagreement |
 | `margin signoff` | Record the allocation rule's sign-off (human, interactive) |
-| `margin doctor`, `margin status` | (planned) Health and state |
+| `margin status` | List the months with their state and result hash |
+| `margin doctor` | (planned) Health |
 
 ## Tests
 

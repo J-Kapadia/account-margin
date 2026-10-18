@@ -1,6 +1,7 @@
-"""The month state machine for the rows that exist so far: `close M` with catch-up, a no-op on a
-closed month, `open -> closed`, a failing earlier month, a changed closed month, and the read
-commands on a closed and on an open month. Each case is one test.
+"""The month state machine, one test per row of the transition table: `close M` with catch-up, a
+no-op on a closed and on a locked month, `open -> closed`, a failing earlier month, a changed
+closed month, `--check` failing on a closed month, `rollforward` on a month a close already loaded,
+`close --recompute`, and the read commands on a closed, a locked and an open month.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import shutil
 from conftest import connect
 import pytest
 
-from conftest import MINI_BOOKS, MINI_CONFIG, close_mini, margin
+from conftest import MINI_BOOKS, MINI_CONFIG, MINI_TRUTH, close_mini, margin
 
 MONTHS = ["2026-02", "2026-03", "2026-04"]
 
@@ -139,3 +140,76 @@ def test_the_read_commands_accept_a_closed_month_and_refuse_an_open_one(mini_clo
     with connect(str(mini_closed_copy)) as con:
         con.execute("DELETE FROM state.close_state WHERE month = DATE '2026-04-01'")
     assert margin("explain", "rollup/2026-04/revenue", *flags).code == 4  # no row is unclosed too
+
+
+def _lock_all(warehouse):
+    with connect(str(warehouse)) as con:
+        con.execute("UPDATE state.close_state SET status = 'locked' WHERE month < DATE '2026-04-01'")
+
+
+def test_close_on_a_locked_month_is_a_no_op_with_the_same_hash(mini_closed_copy):
+    _lock_all(mini_closed_copy)
+    before = _states(mini_closed_copy)
+    result = close_mini(mini_closed_copy, "2026-03")
+    assert result.code == 0, result.stderr
+    assert result.json["result_hash"] == dict((m, h) for m, _, h, _ in before)["2026-03"]
+    assert _states(mini_closed_copy) == before  # still locked, same hash, same closing run
+
+
+def test_rollforward_on_a_month_loaded_by_catch_up_adds_no_rows(mini_closed_copy):
+    def counts():
+        with connect(str(mini_closed_copy), read_only=True) as con:
+            return [con.execute(f"SELECT count(*) FROM raw.{t}").fetchone()[0]
+                    for t in ("invoices", "usage_monthly", "gl")]
+
+    before = counts()
+    result = margin("rollforward", "--fixture", "mini", "--month", "2026-04", "--json",
+                    "--config", str(MINI_CONFIG), "--warehouse", str(mini_closed_copy))
+    assert result.code == 0, result.stderr
+    assert result.json["loaded"] is False
+    assert counts() == before
+    assert [(m, s) for m, s, *_ in _states(mini_closed_copy)] == [
+        ("2026-02", "locked"), ("2026-03", "locked"), ("2026-04", "closed")]
+
+
+def test_check_failing_on_a_closed_month_leaves_the_state_unchanged(mini_closed_copy, tmp_path):
+    truth = tmp_path / "truth"
+    shutil.copytree(MINI_TRUTH, truth)
+    _rewrite(truth / "cost_components.csv", lambda rows: [{**rows[0], "revenue_cents": "1"}, *rows[1:]])
+    before = _states(mini_closed_copy)
+    result = close_mini(mini_closed_copy, rows_month(truth), "--check", "--truth", str(truth))
+    assert result.code == 5, result.stderr
+    assert _states(mini_closed_copy) == before
+
+
+def rows_month(truth):
+    with (truth / "cost_components.csv").open(encoding="utf-8", newline="") as fh:
+        return next(csv.DictReader(fh))["month"]
+
+
+def test_recompute_row_closed_restates_and_locked_or_open_exits_4(mini_closed_copy):
+    before = _states(mini_closed_copy)
+    result = close_mini(mini_closed_copy, "2026-03", "--recompute")
+    assert result.code == 0, result.stderr
+    assert result.json["restated_from"] == result.json["result_hash"] == dict((m, h) for m, _, h, _ in before)["2026-03"]
+    _lock_all(mini_closed_copy)
+    assert close_mini(mini_closed_copy, "2026-03", "--recompute").code == 4
+    with connect(str(mini_closed_copy)) as con:
+        con.execute("UPDATE state.close_state SET status = 'open' WHERE month = DATE '2026-04-01'")
+    assert close_mini(mini_closed_copy, "2026-04", "--recompute").code == 4
+
+
+def test_the_read_commands_accept_a_locked_month_and_explain_and_memo_refuse_an_open_one(mini_closed_copy, tmp_path):
+    flags = ["--fixture", "mini", "--warehouse", str(mini_closed_copy), "--json"]
+    _lock_all(mini_closed_copy)
+    before = _states(mini_closed_copy)
+    assert margin("explain", "rollup/2026-03/revenue", *flags).code == 0
+    assert margin("memo", "--month", "2026-03", "--out", str(tmp_path / "s"), *flags).code == 0
+    assert margin("status", *flags).code == 0
+    assert _states(mini_closed_copy) == before
+    with connect(str(mini_closed_copy)) as con:
+        con.execute("UPDATE state.close_state SET status = 'open', result_hash = NULL WHERE month = DATE '2026-04-01'")
+    for args in (("explain", "rollup/2026-04/revenue"), ("memo", "--month", "2026-04", "--out", str(tmp_path / "t"))):
+        result = margin(*args, *flags)
+        assert result.code == 4 and result.json["message"] == "month 2026-04 not closed"
+    assert margin("status", *flags).code == 0  # status lists the open month rather than refusing it
