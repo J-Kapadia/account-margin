@@ -35,3 +35,27 @@ Method:
   (3 × input + output) / 4; the change over the series is blend(2026-09) / blend(2026-03) − 1.
 - A model's price can fall or rise only through a new model, since vendors rarely reprice an
   existing one, so the series follows the tier rather than a fixed model.
+
+## `vendor_prices.csv`
+
+Public list prices of products that sell a similar job (cloud or AI spend allocation and unit
+costs, FinOps or spend management), one row per vendor. It feeds the build-versus-buy comparison; a
+price here is the vendor's published price, not a quote and not an estimate.
+
+| Column | Meaning |
+|---|---|
+| `vendor` | lower-case, unique, path-safe (`[a-z0-9_-]`); it names the vendor's provenance record |
+| `product` | the vendor's name for the plan that was priced |
+| `annual_list_price_usd` | USD per year, a whole-dollar integer or a two-decimal amount |
+| `source_url` | the vendor's own public pricing page (`https://`, never an archive or search page) |
+| `retrieved_on` | the day the page was read (ISO date) |
+| `notes` | what the price covers and, when the page states a monthly price, that the annual figure is 12 × monthly |
+
+Selection rule:
+
+- A vendor is listed only when its own public pricing page states a dollar price for a self-service
+  plan. A vendor that asks for a quote, or states only "contact us" or a "starts at" figure, is left
+  out; no price is ever estimated.
+- For each listed vendor the row is the highest-priced plan whose price the page states in full.
+- The annual price is the page's annual price when it shows one; otherwise 12 × the page's monthly
+  price, which the `notes` column says.

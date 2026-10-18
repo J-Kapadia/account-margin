@@ -1,0 +1,5 @@
+vendor,product,annual_list_price_usd,source_url,retrieved_on,notes
+cloudchipr,Cloudchipr Pro,9560,https://www.cloudchipr.com/pricing,2026-10-18,"Annual price as shown on the page's annual toggle; plan covers $25k to $100k of monthly cloud spend"
+economize,Economize Professional,2988,https://www.economize.cloud/pricing/,2026-10-18,"Page states $249 per month; annual figure is 12 x 249; plan covers up to $250k of monthly spend"
+holori,Holori Business,2388,https://www.holori.com/pricing,2026-10-18,"Page states $199 per month; annual figure is 12 x 199; plan covers up to $20k of monthly spend"
+vantage,Vantage Business,2400,https://www.vantage.sh/pricing,2026-10-18,"Page states $200 per month; annual figure is 12 x 200; plan covers up to $20k of monthly tracked cost"
