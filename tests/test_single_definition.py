@@ -78,6 +78,6 @@ def test_models_call_the_macro_and_the_profit_mart_has_no_arithmetic():
     assert "contribution_cents(" not in profit
     body = re.sub(r"--[^\n]*", "", profit)
     assert not re.search(r"[-+*/]", re.sub(r"'[^']*'|\"[^\"]*\"|\{\{.*?\}\}|\{%.*?%\}", "", body))
-    # no other model calls the macro
-    callers = [p.name for p in (ROOT / "dbt/models").rglob("*.sql") if "contribution_cents(" in p.read_text()]
-    assert callers == ["fct_contribution_by_rule.sql"]
+    # only the all-rules mart and the scenario call the macro
+    callers = sorted(p.name for p in (ROOT / "dbt/models").rglob("*.sql") if "contribution_cents(" in p.read_text())
+    assert callers == ["fct_contribution_by_rule.sql", "scn_contribution.sql"]

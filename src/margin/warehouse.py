@@ -8,7 +8,7 @@ from pathlib import Path
 
 import duckdb
 
-SCHEMAS = ("raw", "stg", "mart", "ctl", "prov", "state")
+SCHEMAS = ("raw", "stg", "mart", "ctl", "prov", "state", "scenario")
 
 DDL = """
 CREATE TABLE IF NOT EXISTS ctl.control_results (
@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS state.close_state (
     closed_run_id VARCHAR, restated_from VARCHAR
 );
 CREATE TABLE IF NOT EXISTS state.books (books_id VARCHAR);
+CREATE TABLE IF NOT EXISTS scenario.inputs (
+    month DATE, "case" VARCHAR, k INTEGER, account_id VARCHAR, inference_cents BIGINT
+);
 """
 
 

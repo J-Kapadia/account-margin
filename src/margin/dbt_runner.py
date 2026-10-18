@@ -61,13 +61,14 @@ def location_flags(warehouse: Path, env: dict[str, str]) -> list[str]:
     return flags
 
 
-def build(warehouse: Path, config_dir: Path) -> None:
-    """Full-refresh every model and run its tests against `warehouse`, with the configuration."""
+def _run(warehouse: Path, config_dir: Path, *selection: str, extra_vars: dict | None = None) -> None:
+    """One `dbt build` of `selection` against `warehouse`, with the configuration."""
     env = env_for(warehouse)
     cmd = [
         sys.executable, "-c", _DBT_MAIN, "build",
         "--project-dir", str(DBT_DIR), "--profiles-dir", str(DBT_DIR),
-        "--vars", json.dumps(dbt_vars(config_dir)),
+        "--vars", json.dumps({**dbt_vars(config_dir), **(extra_vars or {})}),
+        *selection,
         *location_flags(warehouse, env),
         # Nothing reads dbt's JSON artifacts or its debug log: skip writing them. The partial-parse
         # file is separate and still written.
@@ -78,3 +79,14 @@ def build(warehouse: Path, config_dir: Path) -> None:
     if proc.returncode != 0:
         tail = "\n".join((proc.stdout + proc.stderr).strip().splitlines()[-15:])
         raise MarginError(EXIT_INTERNAL, f"dbt build failed:\n{tail}")
+
+
+def build(warehouse: Path, config_dir: Path) -> None:
+    """Full-refresh every model and run its tests against `warehouse`, with the configuration,
+    except the scenario's: it needs `scenario.inputs`, and a close must not erase its results."""
+    _run(warehouse, config_dir, "--exclude", "tag:scenario")
+
+
+def build_scenario(warehouse: Path, config_dir: Path) -> None:
+    """Build only the scenario model from the rows in `scenario.inputs`, then run its tests."""
+    _run(warehouse, config_dir, "--select", "tag:scenario", extra_vars={"scenario_built": True})

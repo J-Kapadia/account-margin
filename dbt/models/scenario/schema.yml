@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: scn_contribution
+    tests:
+      - unique_combination:
+          columns: [month, '"case"', k, account_id]
+    columns:
+      - name: month
+        tests: [not_null]
+      - name: '"case"'
+        tests:
+          - not_null
+          - accepted_values:
+              values: [full, half, flat]
+      - name: k
+        tests: [not_null]
+      - name: account_id
+        tests: [not_null]
+      - name: recovery_quarter
+        tests:
+          - accepted_values:
+              values: [Q1, Q2, Q3, Q4, none]

@@ -31,3 +31,14 @@ models:
     marts:
       +materialized: table
       +schema: mart
+    scenario:
+      +materialized: table
+      +schema: scenario
+      +tags: [scenario]
+
+# The scenario's tests need scenario.results, which only `margin scenario` builds; it sets
+# scenario_built, so a plain `dbt test` over a closed warehouse skips them.
+data_tests:
+  margin:
+    scenario:
+      +enabled: "{{ var('scenario_built', false) }}"
