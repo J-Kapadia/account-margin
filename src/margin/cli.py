@@ -17,13 +17,14 @@ from . import check as check_mod
 from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
 from . import inject as inject_mod
+from . import memo_check as memo_check_mod
 from . import rollforward as rollforward_mod
 from . import scenario_check as scenario_check_mod
 from . import scenario_run as scenario_mod
 from . import signoff as signoff_mod
 from . import status as status_mod
 from .errors import (
-    EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
+    EXIT_CONTROL, EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
 )
 from .lock import warehouse_lock
 from .paths import Paths, parse_month, resolve
@@ -236,20 +237,34 @@ def explain(paths: Paths, number_id: str, depth: int | None):
 @click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
               help="Month to publish, YYYY-MM.")
 @click.option("--out", type=click.Path(path_type=Path), default=Path("site"), show_default=True)
+@click.option("--check", is_flag=True, help="After the build, prove the memo traceable: CHK-MEMO-NUM and "
+              "CHK-MEMO-QUOTE (exit 3), a digest or value mismatch (exit 6).")
+@click.option("--crawl", is_flag=True, help="With --check (implied): walk the internal links of the output "
+              "directory offline; CHK-CRAWL (exit 3) on a broken one.")
 @common_options("warehouse")
-def memo(paths: Paths, month: str, out: Path):
-    """Build the one-page memo for a closed month."""
+def memo(paths: Paths, month: str, out: Path, check: bool, crawl: bool):
+    """Build the one-page memo for a closed month, and with --check prove it traceable."""
     _require_warehouse(paths)
+    controls: list[dict] = []
     with warehouse_lock(paths.lock, exclusive=False):
         con = connect(paths.warehouse, read_only=True)
         try:
             explain_mod.require_closed(con, month)
             files = memo_mod.build(con, month, out)
+            if check or crawl:
+                controls = memo_check_mod.run(con, month, out, crawl)
         finally:
             con.close()
-    return {"month": month, "out": str(out), "files": [str(f) for f in files]}, [
-        f"wrote {f}" for f in files
-    ]
+    failed = [c for c in controls if c["status"] == "fail"]
+    if failed:
+        raise MarginError(
+            EXIT_CONTROL, "memo check failed: " + ", ".join(c["id"] for c in failed), month=month,
+            controls=[{k: c[k] for k in ("id", "status", "violating_rows")} for c in controls],
+            failed_controls=[{k: c[k] for k in ("id", "violating_rows", "detail")} for c in failed])
+    fields = {"month": month, "out": str(out), "files": [str(f) for f in files]}
+    if controls:
+        fields["controls"] = [{k: c[k] for k in ("id", "status", "violating_rows")} for c in controls]
+    return fields, [f"wrote {f}" for f in files]
 
 
 @main.command()

@@ -297,9 +297,11 @@ def _shown(node: dict) -> str:
     return str(node.get("value_text") or "")
 
 
-def explain_page(node: dict) -> str:
+def explain_page(node: dict, memo_months: frozenset[str] | None = None) -> str:
     """The explain page of one node of an `explain` tree: the first appearance of an ID, so it
-    carries its rows or its children. Digests are recomputed here from what the node holds."""
+    carries its rows or its children. Digests are recomputed here from what the node holds.
+    It links back to its month's memo only when that month is in `memo_months` (default: always),
+    because a month without a memo has no page to link to."""
     number_id = node["number_id"]
     rows = sorted(node.get("rows", []), key=lambda r: r["_row_hash"])
     children = node.get("children")
@@ -316,11 +318,13 @@ def explain_page(node: dict) -> str:
         shown_rows=[{**r, "row": json.dumps(r["row"], sort_keys=True)} for r in rows[:EXPLAIN_ROWS]],
         more_rows=max(len(rows) - EXPLAIN_ROWS, 0),
         children=[c["number_id"] for c in children or []],
-        memo=f"{root}{node['month']}/index.html" if node.get("month") else None,
+        memo=f"{root}{node['month']}/index.html"
+        if node.get("month") and (memo_months is None or node["month"] in memo_months) else None,
     )
 
 
-def _pages(con: duckdb.DuckDBPyConnection, month: str, ids: set[str]) -> dict[str, str]:
+def _pages(con: duckdb.DuckDBPyConnection, month: str, ids: set[str],
+           memo_months: frozenset[str] | None = None) -> dict[str, str]:
     """An explain page for every ID in `ids` and every ID beneath them, by number ID. A composite
     is walked first: its tree holds the pages of its descendants, which are then not walked again."""
     composites = {r[0] for r in con.execute(
@@ -331,7 +335,7 @@ def _pages(con: duckdb.DuckDBPyConnection, month: str, ids: set[str]) -> dict[st
     def collect(node: dict) -> None:
         if node.get("repeated") or node.get("truncated") or node["number_id"] in pages:
             return
-        pages[node["number_id"]] = explain_page(node)
+        pages[node["number_id"]] = explain_page(node, memo_months)
         for child in node.get("children", []):
             collect(child)
 
@@ -400,7 +404,8 @@ def build(con: duckdb.DuckDBPyConnection, month: str, out: Path) -> list[Path]:
     registry = _registry(con, month)
     accounts, sections = gather(con, month, registry)
     html = render(month, accounts, registry, sections)
-    pages = _pages(con, month, set(NUM_ID.findall(html)) | set(CITE_ID.findall(html)))
+    memo_months = frozenset({month, *(_built_months(out) if out.is_dir() else [])})
+    pages = _pages(con, month, set(NUM_ID.findall(html)) | set(CITE_ID.findall(html)), memo_months)
     written: list[Path] = []
     for number_id, text in pages.items():
         _write(out / "explain" / f"{number_id}.html", text, written)
