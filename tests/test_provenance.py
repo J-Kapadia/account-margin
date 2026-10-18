@@ -49,6 +49,13 @@ def test_every_id_is_in_the_grammar_and_month_less_ones_are_cfg_and_ref(con):
             assert prov.month_of_id(rec["number_id"]) == rec["month"].strftime("%Y-%m"), rec["number_id"]
 
 
+def test_the_list_price_series_has_one_reference_record_per_tier_of_seven_rows(con):
+    rows = con.execute(
+        "SELECT number_id, input_row_count FROM prov.records WHERE number_id LIKE 'ref/list_price_series/%' ORDER BY 1"
+    ).fetchall()
+    assert rows == [(f"ref/list_price_series/{tier}", 7) for tier in ("large", "medium", "small")]
+
+
 def test_the_sign_off_is_stamped_on_every_record(con):
     (committed,) = FIXTURE_SIGNOFF.glob("*.json")
     signer = json.loads(committed.read_text())["signer"]
