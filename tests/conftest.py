@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import atexit
 import functools
 import json
 import os
@@ -89,26 +90,37 @@ class Result:
 # the default warehouse lock or on the default books. Session fixtures run before any test has set
 # one, so they fall back to a directory private to the process.
 _default_root: Path | None = None
-_process_default_root: Path | None = None
+_process_default_root: Path | None = None  # set only by the process that created it
+
+
+def _remove_process_default_root() -> None:
+    """Remove the process's own default root; it is private to this process, so no other worker
+    can still be using it."""
+    global _process_default_root
+    root, _process_default_root = _process_default_root, None
+    if root is not None:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def default_paths() -> dict[str, str]:
     global _process_default_root
-    root = _default_root
-    if root is None:
-        if _process_default_root is None:
-            _process_default_root = Path(tempfile.mkdtemp(prefix="margin-defaults-"))
-        root = _process_default_root
-    # dbt's target and log directories are private to the process too: runs on one worker are
-    # serial, so they reuse the parsed project, and runs on different workers never share a file.
     if _process_default_root is None:
         _process_default_root = Path(tempfile.mkdtemp(prefix="margin-defaults-"))
+        atexit.register(_remove_process_default_root)  # fallback when the session hook never runs
+    root = _default_root or _process_default_root
+    # dbt's target and log directories are private to the process too: runs on one worker are
+    # serial, so they reuse the parsed project, and runs on different workers never share a file.
     return {
         "MARGIN_WAREHOUSE": str(root / "warehouse" / "margin.duckdb"),
         "MARGIN_BOOKS": str(root / "data" / "books"),
         "DBT_TARGET_PATH": str(_process_default_root / "dbt-target"),
         "DBT_LOG_PATH": str(_process_default_root / "dbt-logs"),
     }
+
+
+def pytest_sessionfinish(session):
+    """Each process removes the default root it created, so a run leaves nothing under TMPDIR."""
+    _remove_process_default_root()
 
 
 @pytest.hookimpl(tryfirst=True)
