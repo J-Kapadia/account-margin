@@ -17,6 +17,7 @@ from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
 from . import inject as inject_mod
 from . import rollforward as rollforward_mod
+from . import scenario_run as scenario_mod
 from . import signoff as signoff_mod
 from .errors import (
     EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
@@ -226,6 +227,26 @@ def memo(paths: Paths, month: str, out: Path):
             con.close()
     return {"month": month, "out": str(out), "files": [str(f) for f in files]}, [
         f"wrote {f}" for f in files
+    ]
+
+
+@main.command()
+@click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
+              help="Base month, YYYY-MM (closed or locked).")
+@common_options("warehouse", "config")
+def scenario(paths: Paths, month: str):
+    """Run the token-price scenario for a closed month and record its numbers."""
+    _require_warehouse(paths)
+    with warehouse_lock(paths.lock, exclusive=True):
+        con = connect(paths.warehouse, read_only=True)
+        try:
+            explain_mod.require_closed(con, month)
+        finally:
+            con.close()
+        sign = signoff_mod.verify(paths.config, month=month)
+        result = scenario_mod.run_month(paths, month, sign)
+    return result, [
+        f"scenario for {month}: {result['accounts']} accounts, {result['records']} records written"
     ]
 
 

@@ -322,6 +322,31 @@ def _base(month: str | None, *, checks: list[str], run_id: str, signoff: Signoff
     }
 
 
+def _record(base, number_id, value_cents, value_text, unit, step, digest, count, source_query) -> dict:
+    text = value_text if value_text is not None else (None if value_cents is None else str(value_cents))
+    return {
+        **base, "number_id": number_id, "value_cents": value_cents, "value_text": text,
+        "unit": unit, "step": step, "input_digest": digest, "input_row_count": count,
+        "source_query": source_query,
+    }
+
+
+def composite_record(
+    base: dict, number_id: str, children: list[dict], *, value_cents=None, value_text=None,
+    unit="cents", step: str,
+) -> dict:
+    """A composite number's record: its digest is over its `children` (their stored records), its
+    `source_query` the sorted JSON list of their IDs. Builds the record; writes nothing."""
+    digest = digest_children([(c["number_id"], c["input_digest"]) for c in children])
+    return _record(base, number_id, value_cents, value_text, unit, step, digest, len(children),
+                   json.dumps(sorted(c["number_id"] for c in children)))
+
+
+def scenario_base(month: str, *, run_id: str, signoff: Signoff) -> dict:
+    """The columns every `scenario/` record of `month` shares."""
+    return {**_base(month, checks=[], run_id=run_id, signoff=signoff), "producer_id": "margin scenario"}
+
+
 class _Builder:
     """Collects the records of one month; a composite finds its children here or in `known`."""
 
@@ -333,22 +358,19 @@ class _Builder:
         return self.records.get(number_id) or self.known[number_id]
 
     def _add(self, number_id, value_cents, value_text, unit, step, digest, count, source_query) -> None:
-        text = value_text if value_text is not None else (None if value_cents is None else str(value_cents))
-        self.records[number_id] = {
-            **self.base, "number_id": number_id, "value_cents": value_cents, "value_text": text,
-            "unit": unit, "step": step, "input_digest": digest, "input_row_count": count,
-            "source_query": source_query,
-        }
+        self.records[number_id] = _record(
+            self.base, number_id, value_cents, value_text, unit, step, digest, count, source_query
+        )
 
     def leaf(self, number_id, query, *, value_cents=None, value_text=None, unit="cents", step) -> None:
         hashes = [r[1] for r in self.con.execute(query).fetchall()]
         self._add(number_id, value_cents, value_text, unit, step, digest_rows(hashes), len(hashes), query)
 
     def composite(self, number_id, child_ids, *, value_cents=None, value_text=None, unit="cents", step) -> None:
-        children = [self.get(c) for c in child_ids]
-        digest = digest_children([(c["number_id"], c["input_digest"]) for c in children])
-        self._add(number_id, value_cents, value_text, unit, step, digest, len(children),
-                  json.dumps(sorted(child_ids)))
+        self.records[number_id] = composite_record(
+            self.base, number_id, [self.get(c) for c in child_ids],
+            value_cents=value_cents, value_text=value_text, unit=unit, step=step,
+        )
 
 
 def _pct_text(value: Decimal | None) -> str:
