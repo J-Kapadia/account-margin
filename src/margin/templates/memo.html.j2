@@ -1,3 +1,8 @@
+{#- Every figure is `'<id>' | num` (or `| pct`); the prose carries no numeral. -#}
+{%- macro cp(a, component) -%}{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/' ~ component) | num }}{%- endmacro -%}
+{%- macro cp_pct(a, component) -%}{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/' ~ component) | pct }}{%- endmacro -%}
+{%- macro rollup(metric) -%}{{ ('rollup/' ~ month ~ '/' ~ metric) | num }}{%- endmacro -%}
+{%- macro rollup_pct(metric) -%}{{ ('rollup/' ~ month ~ '/' ~ metric) | pct }}{%- endmacro -%}
 <!doctype html>
 <html lang="en">
 <head>
@@ -5,43 +10,199 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Acme AI contribution memo, {{ month }}</title>
 <style>
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: .25rem .5rem; border-bottom: 1px solid #ccc; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
-  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } th, td { border-color: #444; } }
+  .scroll { overflow-x: auto; }
+  a { color: #0b4f9c; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } th, td { border-color: #444; } a { color: #8ab4f8; } }
 </style>
 </head>
 <body>
 <h1>Acme AI contribution memo, {{ month }}</h1>
 
+<section id="page-one">
 <h2>What this memo measures</h2>
 <p>Contribution profit is revenue, net of credits and discounts, less inference cost, cloud cost
-(direct plus allocated shared) and support cost. Support is part of cost of revenue. This is the
-project's own definition, not any company's.</p>
-<p>All figures are synthetic. The books belong to a generated company, "Acme AI".</p>
+(direct plus allocated shared) and support cost. Support is part of cost of revenue: a customer who
+leans hard on the support desk costs more to serve, and leaving that cost out would hide the accounts
+that cost most. This is the project's own definition, not any company's.</p>
 
-<h2>Headline</h2>
-<p>Total revenue for {{ month }}: <strong>{{ ('rollup/' ~ month ~ '/revenue') | num }}</strong>.
-Total contribution profit: <strong>{{ ('rollup/' ~ month ~ '/contribution_profit') | num }}</strong>.</p>
+<h3>Headline</h3>
+<p>Total revenue for {{ month }}: <strong>{{ rollup('revenue') }}</strong>.
+Total contribution profit: <strong>{{ rollup('contribution_profit') }}</strong>.
+Accounts flagged firm: <strong>{{ rollup('accounts_firm') }}</strong>; flagged soft:
+<strong>{{ rollup('accounts_soft') }}</strong>, out of <strong>{{ rollup('accounts_active') }}</strong>
+active accounts.</p>
 
+<h3>The books are synthetic</h3>
+<p>All figures are synthetic. The books belong to a generated company, Acme AI, and describe no real
+customer.</p>
+
+<h3>The seller's view of AI cost</h3>
+<p>Most talk about the cost of AI is written from the buyer's side: what a call to a model costs. This
+memo takes the seller's side. For a company that sells an AI product, the question is what each customer
+costs to serve, in inference, cloud and support, set against what that customer pays, month after month.</p>
+</section>
+
+<section id="by-account">
 <h2>Contribution profit by account</h2>
-<table>
-<thead><tr><th>Account</th><th>Name</th><th class="n">Revenue</th><th class="n">Inference</th>
-<th class="n">Cloud direct</th><th class="n">Cloud shared</th><th class="n">Support</th>
-<th class="n">Contribution profit</th><th class="n">Margin</th><th>Flag</th></tr></thead>
+<h3>Distribution</h3>
+<p>{{ rollup('accounts_active') }} accounts were active in {{ month }}, and
+{{ rollup('accounts_zero_revenue') }} of them had no revenue. Among accounts with usage and positive revenue,
+the lower quartile of margin is {{ rollup_pct('margin_pct_p25') }}, the median is
+{{ rollup_pct('margin_pct_p50') }} and the upper quartile is {{ rollup_pct('margin_pct_p75') }}. The
+lower quartile of monthly revenue is {{ rollup('revenue_p25') }} and the median is {{ rollup('revenue_p50') }}.</p>
+
+{% for title, rows in (('Highest contribution profit', top), ('Lowest contribution profit', bottom)) %}
+{% if rows %}
+<h3>{{ title }}</h3>
+<div class="scroll"><table>
+<thead><tr><th>Account</th><th>Name</th><th class="n">Revenue</th><th class="n">Contribution profit</th>
+<th class="n">Margin</th><th class="n">Trailing three-month margin</th><th>Flag</th></tr></thead>
 <tbody>
-{% for a in accounts %}
-<tr><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>{% for c in ('revenue', 'inference_cost', 'cloud_direct', 'cloud_shared', 'support_cost', 'contribution_profit') %}
-<td class="n">{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/' ~ c) | num }}</td>
-{% endfor %}
-<td class="n">{{ ('cp/' ~ month ~ '/' ~ a.account_id ~ '/margin_pct') | num }}%</td>
+{% for a in rows %}
+<tr data-account="{{ a.account_id }}"><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>
+<td class="n">{{ cp(a, 'revenue') }}</td><td class="n">{{ cp(a, 'contribution_profit') }}</td>
+<td class="n">{{ cp_pct(a, 'margin_pct') }}</td><td class="n">{{ cp_pct(a, 'trailing3_margin') }}</td>
 <td>{{ ('flag/' ~ month ~ '/' ~ a.account_id) | num }}</td></tr>
 {% endfor %}
 </tbody>
-</table>
+</table></div>
+{% endif %}
+{% endfor %}
+</section>
 
-<h2>Tie-out to the general ledger</h2>
+<section id="flagged">
+<h2>Flagged accounts</h2>
+<p>An account is flagged when its contribution profit is below the margin floor. It is <em>firm</em> when it
+is below the floor under every allowed allocation rule and <em>soft</em> when it is below under some rules and
+not others. Each flagged account carries one reason code, the cost driver furthest above its cohort's median.</p>
+{% for title, rows, anchor in (('Firm', firm, 'firm-flags'), ('Soft', soft, 'soft-flags')) %}
+<h3>{{ title }}</h3>
+{% if rows %}
+<div class="scroll"><table id="{{ anchor }}">
+<thead><tr><th>Account</th><th>Name</th><th>Flag and reason</th><th class="n">Revenue</th>
+<th class="n">Contribution profit</th><th class="n">Margin</th></tr></thead>
+<tbody>
+{% for a in rows %}
+<tr data-account="{{ a.account_id }}"><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>
+<td>{{ ('flag/' ~ month ~ '/' ~ a.account_id) | num }}</td>
+<td class="n">{{ cp(a, 'revenue') }}</td><td class="n">{{ cp(a, 'contribution_profit') }}</td>
+<td class="n">{{ cp_pct(a, 'margin_pct') }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p>No account is flagged {{ title | lower }} this month.</p>
+{% endif %}
+{% endfor %}
+
+<h3>Cost with no revenue</h3>
+<p>An account with cost and no revenue has no margin to state, so its margin reads n/a. It is flagged firm by the
+same arithmetic as any other account.</p>
+{% if zero_revenue %}
+<div class="scroll"><table id="zero-revenue">
+<thead><tr><th>Account</th><th>Name</th><th class="n">Inference</th><th class="n">Cloud direct</th>
+<th class="n">Cloud shared</th><th class="n">Support</th><th class="n">Contribution profit</th>
+<th class="n">Margin</th></tr></thead>
+<tbody>
+{% for a in zero_revenue %}
+<tr data-account="{{ a.account_id }}"><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>
+<td class="n">{{ cp(a, 'inference_cost') }}</td><td class="n">{{ cp(a, 'cloud_direct') }}</td>
+<td class="n">{{ cp(a, 'cloud_shared') }}</td><td class="n">{{ cp(a, 'support_cost') }}</td>
+<td class="n">{{ cp(a, 'contribution_profit') }}</td><td class="n">{{ cp_pct(a, 'margin_pct') }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p>No active account has cost without revenue this month.</p>
+{% endif %}
+</section>
+
+<section id="allocation">
+<h2>Allocation rule</h2>
+<p>Shared cloud cost has no owner, so it is spread over accounts by a rule. The recommended rule is
+<code>{{ recommended }}</code>. Contribution profit by account, and so the flags, depend on that choice; the
+tables below show how much.</p>
+{% if changes %}
+<h3>Accounts whose status changes</h3>
+<table id="status-changes">
+<thead><tr><th>Rule</th><th class="n">Accounts changing status against the recommended rule</th><th>Accounts</th></tr></thead>
+<tbody>
+{% for c in changes %}
+<tr data-rule="{{ c.rule }}"><td><code>{{ c.rule }}</code></td>
+<td class="n">{{ ('rollup/' ~ month ~ '/accounts_status_change_' ~ c.rule) | num }}</td>
+<td>{{ c.accounts | join(', ') }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
+{% if spread %}
+<h3>Spread across rules</h3>
+<p>Contribution profit of each flagged account under each allowed rule.</p>
+<div class="scroll"><table id="rule-spread">
+<thead><tr><th>Account</th>{% for rule in rules %}<th class="n"><code>{{ rule }}</code></th>{% endfor %}</tr></thead>
+<tbody>
+{% for a in spread %}
+<tr data-account="{{ a.account_id }}"><td>{{ a.account_id }}</td>
+{% for rule in rules %}<td class="n">{{ ('cpr/' ~ month ~ '/' ~ a.account_id ~ '/' ~ rule) | num }}</td>{% endfor %}</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+
+<h3>Why <code>{{ recommended }}</code></h3>
+<p>The synthetic books were generated with shared cloud cost that scales with inference volume, measured in
+tokens, and <code>{{ recommended }}</code> allocates it the same way. The recommendation is consistent with how
+the data was constructed. It is not evidence about how the shared cloud cost of any real business behaves.</p>
+</section>
+
+<section id="actions">
+<h2>Actions</h2>
+<p>Each firm-flagged account gets the action its reason code dictates, by a fixed rule:</p>
+<ul>
+<li><code>DEEP_DISCOUNT</code> or <code>DEDICATED_CLOUD</code>: reprice at renewal.</li>
+<li><code>MODEL_MIX</code>: migrate to a plan priced per model.</li>
+<li><code>SUPPORT_LOAD</code> with revenue below the lower quartile of revenue, {{ rollup('revenue_p25') }}: let the
+account churn. With revenue at or above it: reprice.</li>
+</ul>
+{% if actions %}
+<div class="scroll"><table id="action-table">
+<thead><tr><th>Account</th><th>Name</th><th>Reason</th><th class="n">Revenue</th><th>Action</th></tr></thead>
+<tbody>
+{% for a in actions %}
+<tr data-account="{{ a.account_id }}" data-action="{{ a.action }}"><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>
+<td><code>{{ a.reason_code }}</code></td><td class="n">{{ cp(a, 'revenue') }}</td><td>{{ a.action_text }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p>No account is flagged firm this month, so there is no action to take.</p>
+{% endif %}
+</section>
+
+<section id="scenario">
+<h2>Token-price scenario</h2>
+<p>This section is added in a later release of the memo.</p>
+</section>
+
+<section id="build-vs-buy">
+<h2>Build versus buy</h2>
+<p>This section is added in a later release of the memo.</p>
+</section>
+
+<section id="controls">
+<h2>Controls and limits</h2>
+<h3>Controls</h3>
+<p>The month closed only after every control below ran on it:</p>
+<ul id="control-list">
+{% for control in controls %}<li>{{ control }}</li>
+{% endfor %}</ul>
+
+<h3>Tie-out to the general ledger</h3>
 <p>Account revenue less the ledger, by revenue code. Every difference must be zero for the month to close.</p>
 <table>
 <thead><tr><th>GL code</th><th class="n">Difference</th></tr></thead>
@@ -52,8 +213,65 @@ Total contribution profit: <strong>{{ ('rollup/' ~ month ~ '/contribution_profit
 </tbody>
 </table>
 
-<h2>Where each number comes from</h2>
-<p>Every figure above carries its number ID. <code>margin explain &lt;number-id&gt;</code> prints the
-chain from the figure down to the hashed source rows.</p>
+<h3>Agreement between interfaces</h3>
+<p>A number can be asked for through the command line, through SQL, through this page and through the cached
+values file. Whether the four agree for every account is checked after this page is built, and the result is
+published beside it as <a href="agreement.json" data-deferred="agreement">agreement.json</a>. This page does
+not embed that result, because a page cannot contain the outcome of a check over itself.</p>
+
+<h3>Limits</h3>
+<ul>
+<li>Sign-off: a public demo cannot enforce separation of duties. Whoever can run the commands can also approve
+the configuration, and the <code>producer_kind</code> on each provenance record, <code>workflow</code> or
+<code>agent</code>, is declared by the process that writes it, not verified.</li>
+<li>The injected-error tests copy the books, plant a known error and require the matching control to fail and
+name the rows. They prove those controls catch those errors. They do not prove that no other error exists.</li>
+<li>This first version uses synthetic books only, writes its prose from fixed templates with no model-written
+commentary, does not forecast, and allocates shared cloud cost by one of the stated rules rather than measuring
+it per customer.</li>
+</ul>
+</section>
+
+<section id="appendix">
+<h2>Appendix</h2>
+<h3>Method</h3>
+<p>Each account's revenue is its invoiced platform fees and usage less credits. Inference cost prices each
+account's tokens by model. Direct cloud cost is cost tagged to the account; shared cloud cost is spread by the
+allocation rule. Support cost is handled minutes at the rate for the ticket's tier. Contribution profit is
+revenue less those four costs, in whole cents. Margin is contribution profit as a share of revenue, rounded
+half-even to four decimal places, and n/a where revenue is zero.</p>
+<p>Every figure on this page carries its number ID. <code>margin explain &lt;number-id&gt;</code> prints the
+chain from the figure down to the hashed source rows. The code is in the
+<a href="{{ repository }}">project repository</a>.</p>
+
+<h3>Definitions</h3>
+<dl>
+<dt>Active account</dt><dd>An account with any invoice, usage, tagged-cost or ticket row in the month.</dd>
+<dt>Firm flag</dt><dd>Contribution profit below the floor under every allowed allocation rule.</dd>
+<dt>Soft flag</dt><dd>Contribution profit below the floor under some allowed rules but not all.</dd>
+<dt>Quartile</dt><dd>The value at the nearest rank in the sorted values, taken over accounts with usage and positive revenue.</dd>
+</dl>
+
+<h3>Every checked figure</h3>
+<p>The table holds each account's six cents components and margin, then the six month totals. Each cell carries
+its number ID and its unrounded value.</p>
+<div class="scroll"><table id="appendix-table">
+<thead><tr><th>Account</th><th>Name</th><th class="n">Revenue</th><th class="n">Inference</th>
+<th class="n">Cloud direct</th><th class="n">Cloud shared</th><th class="n">Support</th>
+<th class="n">Contribution profit</th><th class="n">Margin</th></tr></thead>
+<tbody>
+{% for a in accounts %}
+<tr data-account="{{ a.account_id }}"><td>{{ a.account_id }}</td><td>{{ a.display_name }}</td>
+{% for c in ('revenue', 'inference_cost', 'cloud_direct', 'cloud_shared', 'support_cost', 'contribution_profit') %}<td class="n">{{ cp(a, c) }}</td>
+{% endfor %}<td class="n">{{ cp_pct(a, 'margin_pct') }}</td></tr>
+{% endfor %}
+</tbody>
+<tfoot>
+<tr data-row="totals"><td>Month total</td><td></td>
+{% for c in ('revenue', 'inference_cost', 'cloud_direct', 'cloud_shared', 'support_cost', 'contribution_profit') %}<td class="n">{{ rollup(c) }}</td>
+{% endfor %}<td></td></tr>
+</tfoot>
+</table></div>
+</section>
 </body>
 </html>
