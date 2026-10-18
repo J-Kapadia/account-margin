@@ -16,6 +16,7 @@ from . import check as check_mod
 from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
 from . import inject as inject_mod
+from . import rollforward as rollforward_mod
 from . import signoff as signoff_mod
 from .errors import (
     EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
@@ -167,6 +168,18 @@ def close(paths: Paths, month: str, check: bool):
         result = close_mod.close_month(paths, month, check=check)
     return {"month": result["month"], "controls": result["controls"],
             "result_hash": result["result_hash"]}, [f"closed {month}" + (" (checked against the answer key)" if check else "")]
+
+
+@main.command()
+@click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
+              help="Month to load, YYYY-MM.")
+@common_options("books", "truth", "warehouse", "config")
+def rollforward(paths: Paths, month: str):
+    """Lock the earlier closed months and load a month's actuals, without closing it."""
+    with warehouse_lock(paths.lock, exclusive=True):
+        result = rollforward_mod.rollforward_month(paths, month)
+    locked = ", ".join(result["locked"]) or "none"
+    return result, [f"rolled forward to {month}: locked {locked}"]
 
 
 def _require_warehouse(paths: Paths) -> None:
