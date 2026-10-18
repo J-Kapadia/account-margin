@@ -70,6 +70,11 @@ uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" --
 uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --check --json
 uv run margin explain rollup/2026-04/revenue --fixture mini --warehouse "$work/mini.duckdb" --json
 uv run margin explain cfg/policy --fixture mini --warehouse "$work/mini.duckdb"
+# The token-price scenario: proved against its hand-worked reference in its own temporary warehouse,
+# then run on the closed March of the `mini` warehouse, with the first record of its summary explained.
+MARGIN_SIGNOFF_DIR=tests/fixtures/signoff uv run margin scenario --check
+uv run margin scenario --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --json
+uv run margin explain scenario/2026-03/summary/computed_change --fixture mini --warehouse "$work/mini.duckdb"
 rc=0
 MARGIN_SIGNOFF_DIR="$work" uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" \
   --warehouse "$work/unsigned.duckdb" || rc=$?

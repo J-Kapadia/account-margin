@@ -8,7 +8,7 @@ Everything is synthetic. The books belong to "Acme AI", a generated usage-priced
 
 ## Status
 
-Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Roll-forward and month locking (`rollforward`, `close --recompute` and `status`) are built too. Still to come: the token-price scenario, the full memo site, `agreement` and `doctor`.
+Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Roll-forward and month locking (`rollforward`, `close --recompute` and `status`) are built too. The token-price scenario is built too (`scenario --check` and `scenario --month`, described below). Still to come: the full memo site, `agreement` and `doctor`.
 
 The production allocation and policy configs are not signed yet, so run it today on the committed `mini` fixture (12 accounts, February to April 2026), which carries its own signed configs:
 
@@ -21,10 +21,22 @@ uv run margin rollforward --fixture mini --config tests/fixtures/config --month 
 uv run margin close --fixture mini --config tests/fixtures/config --month 2026-04 --check --warehouse warehouse/roll.duckdb
 uv run margin status --fixture mini --warehouse warehouse/roll.duckdb
 uv run margin explain cp/2026-03/acct_0001/contribution_profit --fixture mini
+uv run margin scenario --check
+uv run margin scenario --month 2026-03 --fixture mini --config tests/fixtures/config --warehouse warehouse/roll.duckdb
+uv run margin explain scenario/2026-03/summary/computed_change --fixture mini --warehouse warehouse/roll.duckdb
 uv run pytest -q tests/test_injected_errors.py
 ```
 
 The first close runs every earlier month first, passes every control and matches the answer key; the roll-forward sequence on its own warehouse closes March, locks February and March while loading April, closes and checks April, and `status` lists February and March as `locked` and April as `closed` with their result hashes (`close --recompute` re-closes a `closed` month whose model code was fixed, storing the new hash and the old one as `restated_from`; on a `locked` month it exits 4); `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it.
+
+## The token-price scenario
+
+The scenario asks what happens to the accounts below the margin floor if the cost of inference follows a real, published trend in list prices. It is a what-if over synthetic accounts, not a forecast and not a statement about any company's costs.
+
+- `margin scenario --month M` runs it on a month that is `closed` or `locked` (an `open` month exits 4). For the accounts flagged `firm` or `soft` in that month it scales the month's inference cost by the series' change at the end of each of four quarters, under three cases (`full`, `half` and `flat`: all, half or none of the change reaches the cost), and records each account's contribution profit, margin and recovery quarter, with a summary per case. Every number has a provenance record (`scenario/M/...`) that `margin explain` walks down to the base month's `cp/` records and the price series. It writes `scenario.*` tables and those records only: it adds no month state and never changes a month's result hash, so closing the month before or after it gives the same hash.
+- `margin scenario --check` proves the scenario against a small hand-worked reference (`tests/fixtures/scenario`): it generates the reference books into a temporary directory and warehouse, runs the scenario there and exits 3 on any difference from the worked series, computed change, recovery quarters and margin paths. It touches no warehouse of yours.
+- The disclaimer travels with the numbers: the series is a blend of model vendors' list prices with fixed weights (an unweighted mean over three tiers of the input and output price, three parts input to one part output), applied to synthetic accounts. It is not Acme's per-model price and not any customer's cost.
+- The series file is `data/reference/list_price_series.csv`: one row per tier and month, 2026-03 through 2026-09, each with the vendor's pricing page as captured by the Internet Archive and the day it was read; `data/reference/README.md` gives the method. Set `MARGIN_LIST_PRICE_SERIES` to read another file of the same shape.
 
 ## What it does
 
@@ -33,11 +45,11 @@ The first close runs every earlier month first, passes every control and matches
 - Allocates shared cloud cost under three rules, and flags accounts below a margin floor as *firm* (below under every rule) or *soft* (below under some), each with a reason code.
 - Catches injected errors (duplicate invoice, cutoff slip, double-counted shared cost, sign flip, one-cent rounding slip) by naming the control that fails.
 - Attaches a provenance record to every number, so `margin explain <number-id>` prints the chain down to the source rows.
+- Applies a published list-price trend to the synthetic accounts below the floor, in a token-price scenario that leaves the closed month untouched.
 - Rolls a month forward: `rollforward` locks every earlier closed month and loads the next month's books in one transaction, and `status` lists each month's state and result hash.
 
 Planned, not built yet:
 
-- A token-price scenario that applies a published list-price trend to the synthetic accounts.
 - A static memo with agent-readable data (`llms.txt`, the model's SQL and a cached values file per month), and an `agreement` check that the CLI, SQL, memo and cached values return the same answer for every number.
 
 ## Requirements
@@ -68,7 +80,7 @@ uv run margin agreement --month 2026-03 --check
 | `margin rollforward` | Lock every earlier closed month and load the next |
 | `margin explain` | Print the provenance chain of a number |
 | `margin inject` | Copy the books with one seeded error |
-| `margin scenario` | (planned) Token-price scenario |
+| `margin scenario` | Token-price scenario for a closed month (`--month`), or its proof against a hand-worked reference (`--check`) |
 | `margin memo` | (planned) Build the memo and explain pages as a static site |
 | `margin agreement` | (planned) Ask every interface for every number and report any disagreement |
 | `margin signoff` | Record the allocation rule's sign-off (human, interactive) |
