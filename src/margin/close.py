@@ -9,6 +9,7 @@ is unchanged.
 
 from __future__ import annotations
 
+import re
 import uuid
 from pathlib import Path
 
@@ -42,6 +43,43 @@ def _fail_controls(month: str, results: list[dict], *, prefix: str = "") -> Marg
     )
 
 
+_CORRECT_IN_OPEN_MONTH = "correct it with an entry in the open month"
+_CHANGED_MONTH = re.compile(r"^raw\.(?P<table>\w+): month (?P<month>\d{4}-\d{2}) changed since it was loaded$")
+
+
+def _lock_failure(
+    con: duckdb.DuckDBPyConnection, month: str, run_id: str, message: str, detail: list[str],
+    results: list[dict] | None = None,
+) -> MarginError:
+    """Record a failed CTL-LOCK for `month` and return the exit 3 error that reports it."""
+    verdict = {"id": "CTL-LOCK", "status": "fail", "violating_rows": 1, "detail": detail}
+    controls.record(con, month, run_id, verdict)
+    return MarginError(
+        EXIT_CONTROL, message, month=month, controls=_public(results or []) + _public([verdict]),
+        failed_controls=[{k: verdict[k] for k in ("id", "violating_rows", "detail")}],
+    )
+
+
+def _changed_month_error(
+    con: duckdb.DuckDBPyConnection, run_id: str, err: MarginError
+) -> MarginError | None:
+    """The CTL-LOCK failure for a load that found a closed or locked month's books changed;
+    None when the error is anything else (an open month, or the books as a whole)."""
+    found = _CHANGED_MONTH.match(err.message) if err.exit_code == EXIT_CONTROL else None
+    if found is None:
+        return None
+    month = found["month"]
+    stored = con.execute(
+        "SELECT status FROM state.close_state WHERE month = ?", [month_date(month)]
+    ).fetchone()
+    if stored is None or stored[0] not in ("closed", "locked"):
+        return None
+    return _lock_failure(
+        con, month, run_id, f"{stored[0]} month {month} changed: {found['table']}; "
+        f"{_CORRECT_IN_OPEN_MONTH}", [err.message],
+    )
+
+
 def close_month(paths: Paths, month: str, *, check: bool = False) -> dict:
     """Close `month` (and any earlier month of the window); return the envelope fields.
 
@@ -63,7 +101,13 @@ def close_month(paths: Paths, month: str, *, check: bool = False) -> dict:
     try:
         init_schemas(con)
         load.check_books_identity(con, paths.books)
-        load.load_months(con, paths.books, first, month, run_id)
+        try:
+            load.load_months(con, paths.books, first, month, run_id)
+        except MarginError as err:
+            lock = _changed_month_error(con, run_id, err)
+            if lock is None:
+                raise
+            raise lock from err
         load.load_reference(con, paths.prices)
         load.load_config(con, paths.config)
         stored = con.execute(
@@ -119,21 +163,28 @@ def _close_one(
     known.update({r["number_id"]: r for r in records})
     new_hash = prov.result_hash(records)
     stored = con.execute(
-        "SELECT status, result_hash FROM state.close_state WHERE month = ?", [month_date(month)]
+        "SELECT status, result_hash, input_digest FROM state.close_state WHERE month = ?",
+        [month_date(month)],
     ).fetchone()
     if stored is not None and stored[0] in ("closed", "locked"):
-        if stored[1] != new_hash:
-            # A closed month whose recomputed result differs is a failure, not a rewrite.
-            lock = {
-                "id": "CTL-LOCK", "violating_rows": 1,
-                "detail": [f"{month}: stored result_hash {stored[1]}, recomputed {new_hash}"],
-            }
-            raise MarginError(
-                EXIT_CONTROL, f"closed month {month} changed: result hash differs",
-                month=month, controls=_public(results) + [{"id": "CTL-LOCK", "status": "fail",
-                                                          "violating_rows": 1}],
-                failed_controls=[lock],
+        # A closed or locked month whose recomputed inputs or result differ is a failure, not a
+        # rewrite. A locked month is never restated: the fix is an entry in the open month.
+        status = stored[0]
+        hint = f"; {_CORRECT_IN_OPEN_MONTH}" if status == "locked" else ""
+        if status == "locked" and stored[2] != prov.month_input_digest(records):
+            raise _lock_failure(
+                con, month, run_id, f"locked month {month} changed: input digest differs{hint}",
+                [f"{month}: stored input_digest {stored[2]}, recomputed "
+                 f"{prov.month_input_digest(records)}"], results,
             )
+        if stored[1] != new_hash:
+            raise _lock_failure(
+                con, month, run_id, f"{status} month {month} changed: result hash differs{hint}",
+                [f"{month}: stored result_hash {stored[1]}, recomputed {new_hash}"], results,
+            )
+        lock = {"id": "CTL-LOCK", "status": "pass", "violating_rows": 0, "detail": []}
+        controls.record(con, month, run_id, lock)
+        results = results + [lock]
         # The month is as it was closed: CTL-PROV re-checks the records that are stored.
         verdict = prov.control(con, month, config, expected_hash=stored[1])
         controls.record(con, month, run_id, verdict)

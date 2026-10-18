@@ -103,7 +103,8 @@ def test_a_closed_month_whose_books_changed_exits_3_and_keeps_its_state(mini_clo
     _rewrite(books / "gl.csv", lambda rows: [r for i, r in enumerate(rows) if i != _first_gl_row(rows, "2026-02", "4000")])
     before = _states(mini_closed_copy)
     result = _close_books(books, mini_closed_copy, "2026-03")
-    assert result.code == 3 and "changed since it was loaded" in result.json["message"]
+    assert result.code == 3 and "closed month 2026-02 changed" in result.json["message"]
+    assert result.json["failed_controls"][0]["id"] == "CTL-LOCK"
     assert _states(mini_closed_copy) == before
 
 

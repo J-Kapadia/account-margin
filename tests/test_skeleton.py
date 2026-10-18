@@ -51,7 +51,7 @@ def test_close_is_idempotent(closed_copy):
     assert first["controls"] == [
         {"id": c, "status": "pass", "violating_rows": 0}
         for c in ("CTL-SIGNOFF", "CTL-ALLOC-CONSERVE", "CTL-CUTOFF", "CTL-PRICE-PIN", "CTL-REV-DUP", "CTL-SIGN",
-                  "CTL-TIE-CLD", "CTL-TIE-INF", "CTL-TIE-REV", "CTL-TIE-SUP")
+                  "CTL-TIE-CLD", "CTL-TIE-INF", "CTL-TIE-REV", "CTL-TIE-SUP", "CTL-LOCK")
     ]
 
 
