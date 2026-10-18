@@ -6,11 +6,19 @@ process marks every earlier `closed` month `locked`, loads the target month's bo
 already loaded, and records the month as `open` unless it has a row. dbt never runs inside or
 between those writes, and the month is not closed here. Every part is skipped when it is already
 true, so a repeat changes nothing.
+
+`MARGIN_PAUSE_BEFORE_COMMIT` is a hook for the interruption test only. When it names a path, the
+transaction creates that file once the month is loaded and recorded but before it commits, then
+waits (polling every 50 ms, at most 30 s) until the file is removed. A test that kills the process
+while it waits gets a reproducible crash inside the transaction.
 """
 
 from __future__ import annotations
 
+import os
+import time
 import uuid
+from pathlib import Path
 
 import duckdb
 
@@ -44,6 +52,23 @@ def _is_loaded(con: duckdb.DuckDBPyConnection, month: str) -> bool:
     return con.execute(
         "SELECT count(*) FROM raw.invoices WHERE _month = ?", [month_date(month)]
     ).fetchone()[0] > 0
+
+
+PAUSE_ENV = "MARGIN_PAUSE_BEFORE_COMMIT"
+PAUSE_POLL_SECONDS = 0.05
+PAUSE_LIMIT_SECONDS = 30.0
+
+
+def _pause_before_commit() -> None:
+    """Test hook: create the marker file named by `MARGIN_PAUSE_BEFORE_COMMIT` and wait for its removal."""
+    target = os.environ.get(PAUSE_ENV)
+    if not target:
+        return
+    marker = Path(target)
+    marker.touch()
+    deadline = time.monotonic() + PAUSE_LIMIT_SECONDS
+    while marker.exists() and time.monotonic() < deadline:
+        time.sleep(PAUSE_POLL_SECONDS)
 
 
 def rollforward_month(paths: Paths, month: str) -> dict:
@@ -81,6 +106,7 @@ def rollforward_month(paths: Paths, month: str) -> dict:
                 "ON CONFLICT DO NOTHING",
                 [month_date(month)],
             )
+            _pause_before_commit()
             con.execute("COMMIT")
         except Exception:
             con.execute("ROLLBACK")
