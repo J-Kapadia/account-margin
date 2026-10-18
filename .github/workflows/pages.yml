@@ -1,0 +1,81 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      MARGIN_SIGNOFF_DIR: tests/fixtures/signoff
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.0"
+      - name: Sync dependencies
+        run: time uv sync --frozen
+      - name: Close February to April
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin close --month 2026-04 --fixture mini --config tests/fixtures/config --warehouse "$W" --check --json
+      - name: Scenario 2026-03
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin scenario --month 2026-03 --fixture mini --config tests/fixtures/config --warehouse "$W" --json
+      - name: Memo 2026-03
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin memo --month 2026-03 --fixture mini --warehouse "$W" --out site --check --crawl --json
+      - name: Agreement 2026-03
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin agreement --month 2026-03 --fixture mini --warehouse "$W" --site site --check --write --json
+      - name: Scenario 2026-04
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin scenario --month 2026-04 --fixture mini --config tests/fixtures/config --warehouse "$W" --json
+      - name: Memo 2026-04
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin memo --month 2026-04 --fixture mini --warehouse "$W" --out site --check --crawl --json
+      - name: Agreement 2026-04
+        run: |
+          W=$RUNNER_TEMP/mini.duckdb
+          time uv run margin agreement --month 2026-04 --fixture mini --warehouse "$W" --site site --check --write --json
+      - name: Site size
+        run: time du -sh site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Check the deployed site
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          SITE_URL="${SITE_URL%/}"
+          curl -fsS "$SITE_URL/llms.txt" | grep -q fct_contribution_profit
+          curl -fsS "$SITE_URL/2026-03/agreement.json" | python3 -c 'import json,sys; sys.exit(json.load(sys.stdin)["disagreement_rate"] != 0)'
