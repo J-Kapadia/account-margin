@@ -8,8 +8,10 @@ profit, margin and floor test back from `scenario.results`. The caller holds the
 
 from __future__ import annotations
 
+import os
 import uuid
 from decimal import Decimal
+from pathlib import Path
 
 import duckdb
 
@@ -21,6 +23,7 @@ from .signoff import Signoff
 from .warehouse import connect, init_schemas, month_date
 
 SERIES_FILE = REFERENCE_DIR / "list_price_series.csv"
+SERIES_ENV = "MARGIN_LIST_PRICE_SERIES"
 PERSISTENCE_PCT = {"full": "100", "half": "50", "flat": "0"}
 QUARTERS = tuple(f"Q{q}" for q in range(1, 5))
 DBT_STEP = "dbt:scn_contribution"
@@ -45,12 +48,18 @@ def _population(con: duckdb.DuckDBPyConnection, month: str) -> list[tuple[str, i
     ]
 
 
+def series_path() -> Path:
+    """The list-price series file: `MARGIN_LIST_PRICE_SERIES`, else the committed one."""
+    return Path(os.environ.get(SERIES_ENV) or SERIES_FILE)
+
+
 def _trend() -> tuple[Decimal, Decimal]:
-    """(monthly rate, computed change) of the committed list-price series."""
-    rows = scenario.read_series(SERIES_FILE)
+    """(monthly rate, computed change) of the list-price series."""
+    path = series_path()
+    rows = scenario.read_series(path)
     problems = scenario.validate_series(rows)
     if problems:
-        raise MarginError(EXIT_PRECONDITION, f"{SERIES_FILE.name} is not usable: {problems[0]}")
+        raise MarginError(EXIT_PRECONDITION, f"{path.name} is not usable: {problems[0]}")
     return scenario.monthly_rate(rows), scenario.computed_change(rows)
 
 

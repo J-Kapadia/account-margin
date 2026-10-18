@@ -18,6 +18,7 @@ from . import close as close_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
 from . import inject as inject_mod
 from . import rollforward as rollforward_mod
+from . import scenario_check as scenario_check_mod
 from . import scenario_run as scenario_mod
 from . import signoff as signoff_mod
 from .errors import (
@@ -263,11 +264,21 @@ def agreement(paths: Paths, month: str, check: bool, write: bool, site: Path, va
 
 
 @main.command()
-@click.option("--month", required=True, callback=lambda c, p, v: _month_option(v),
+@click.option("--month", default=None, callback=lambda c, p, v: v and _month_option(v),
               help="Base month, YYYY-MM (closed or locked).")
+@click.option("--check", is_flag=True, help="Prove the scenario against the hand-worked reference "
+              "(CHK-SCENARIO, exit 3 on any difference); runs on its own generated preset.")
+@click.option("--reference", type=click.Path(path_type=Path), default=scenario_check_mod.REFERENCE,
+              show_default=True, help="With --check: the directory holding expected.csv and summary.json.")
 @common_options("warehouse", "config")
-def scenario(paths: Paths, month: str):
-    """Run the token-price scenario for a closed month and record its numbers."""
+def scenario(paths: Paths, month: str | None, check: bool, reference: Path):
+    """Run the token-price scenario for a closed month, or check it against its reference."""
+    if check == (month is not None):
+        raise MarginError(EXIT_USAGE, "give exactly one of --month and --check")
+    if check:
+        result = scenario_check_mod.check(paths, reference)
+        return result, [f"{c['id']} {c['status']}: {result['accounts']} accounts, "
+                        f"computed change {result['computed_change']}" for c in result["checks"]]
     _require_warehouse(paths)
     with warehouse_lock(paths.lock, exclusive=True):
         con = connect(paths.warehouse, read_only=True)
