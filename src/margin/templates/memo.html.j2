@@ -268,7 +268,55 @@ illustrative what-if relative to {{ month }}, not a forecast made then.</p>
 
 <section id="build-vs-buy">
 <h2>Build versus buy</h2>
-<p>This section is added in a later release of the memo.</p>
+{% if bvb_present %}
+<p>The question is whether to buy a vendor's product for this job or to keep the tool that was built. A vendor
+is bought when its annual list price is below the build cost spread over twelve months, plus twelve months of
+run cost, plus a maintenance allowance; otherwise the tool is kept. The allowance is an input, stated as one
+tenth of the build cost per year.</p>
+
+<h3>What the build cost</h3>
+<p>Each figure is measured, not estimated, and carries the source it was collected from.</p>
+<div class="scroll"><table id="build-cost">
+<thead><tr><th>Measure</th><th class="n">Figure</th><th>Source</th></tr></thead>
+<tbody>
+<tr data-measure="build_cost"><td>Model spend</td><td class="n">{{ 'bvb/build_cost' | num }}</td><td>{{ bvb_build_source | cite('ref/build_cost/build_cost_usd') }}</td></tr>
+{% for m in bvb_measures %}
+<tr data-measure="{{ m.ref }}"><td>{{ m.label }}</td><td class="n">{{ m.shown | cite(m.ref) }}</td><td>{{ m.source | cite(m.ref) }}</td></tr>
+{% endfor %}
+<tr data-measure="run_cost_monthly"><td>Run cost for a month</td><td class="n">{{ bvb_run_monthly | cite(bvb_run_ref) }}</td><td>{{ bvb_run_source | cite(bvb_run_ref) }}</td></tr>
+</tbody>
+</table></div>
+
+<h3>The cost to beat</h3>
+<div class="scroll"><table id="cost-to-beat">
+<thead><tr><th>Part of the yearly cost of keeping the tool</th><th class="n">Amount</th></tr></thead>
+<tbody>
+<tr><td>Build cost spread over the year</td><td class="n">{{ 'bvb/build_cost_amortised' | num }}</td></tr>
+<tr><td>Run cost for the year</td><td class="n">{{ 'bvb/run_cost_annual' | num }}</td></tr>
+<tr><td>Maintenance allowance</td><td class="n">{{ 'bvb/maintenance_allowance' | num }}</td></tr>
+</tbody>
+</table></div>
+
+<h3>Vendors selling the same job</h3>
+{% if bvb_vendors %}
+<p>Each price is the vendor's published list price for a year, cited to the page it was read from and the date
+it was retrieved.</p>
+<div class="scroll"><table id="vendor-verdicts">
+<thead><tr><th>Vendor</th><th class="n">Annual list price</th><th>Verdict</th><th>Source</th><th>Retrieved</th></tr></thead>
+<tbody>
+{% for v in bvb_vendors %}
+<tr data-vendor="{{ v.vendor }}" data-verdict="{{ v.verdict }}"><td>{{ v.product }}</td><td class="n">{{ v.id | num }}</td>
+<td>{{ v.verdict }}</td><td><a href="{{ v.source_url }}">price page</a></td>
+<td>{{ v.retrieved_on | cite(v.ref) }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p>No vendor list prices have been collected yet.</p>
+{% endif %}
+{% else %}
+<p>The build cost has not been collected yet, so this section has no figures.</p>
+{% endif %}
 </section>
 
 <section id="controls">

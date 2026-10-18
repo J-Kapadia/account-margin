@@ -52,11 +52,11 @@ ACTIONS = {"DEEP_DISCOUNT": REPRICE_AT_RENEWAL, "DEDICATED_CLOUD": REPRICE_AT_RE
 
 
 def _registry(con: duckdb.DuckDBPyConnection, month: str) -> dict[str, dict]:
-    """The month's records (the `scenario/` ones carry the base month) and the month-less
-    list-price series records the scenario's trend is cited from."""
+    """The month's records (the `scenario/` ones carry the base month) and the month-less `ref/` and
+    `bvb/` records the scenario's trend and the build-versus-buy section are cited from."""
     rows = con.execute(
         "SELECT number_id, value_cents, value_text, unit FROM prov.records "
-        "WHERE month = ? OR starts_with(number_id, 'ref/list_price_series/')",
+        "WHERE month = ? OR (month IS NULL AND (starts_with(number_id, 'bvb/') OR starts_with(number_id, 'ref/')))",
         [f"{month}-01"],
     ).fetchall()
     return {r[0]: {"value_cents": r[1], "value_text": r[2], "unit": r[3]} for r in rows}
@@ -113,6 +113,7 @@ def empty_sections() -> dict:
     return {
         "top": [], "bottom": [], "firm": [], "soft": [], "zero_revenue": [], "actions": [],
         "rules": [], "recommended": "", "spread": [], "changes": [], "controls": [], "scenario": None,
+        "bvb_present": False, "bvb_measures": [], "bvb_vendors": [],
     }
 
 
@@ -180,6 +181,60 @@ def _scenario(month: str, accounts: list[dict], registry: dict[str, dict]) -> di
     }
 
 
+# The measured build-cost totals the section lists, in order: (measure, label, unit shown after the figure).
+BUILD_MEASURES = (
+    ("input_tokens", "Model input tokens", ""),
+    ("output_tokens", "Model output tokens", ""),
+    ("elapsed_hours", "Elapsed time", " hours"),
+    ("review_minutes", "Author review time", " minutes"),
+)
+VENDOR_PREFIX = "bvb/vendor_annual_cost/"
+
+
+def _reference_row(registry: dict[str, dict], number_id: str) -> dict:
+    """The one reference-file row a `ref/` record holds, as text."""
+    return json.loads(_record(registry, number_id)["value_text"])[0]
+
+
+def _plain(amount: str) -> str:
+    """A reference amount as it is read: grouped thousands, no trailing zero decimals."""
+    value = Decimal(amount)
+    return f"{value.quantize(Decimal(1)):,}" if value == value.to_integral_value() else f"{value:,}"
+
+
+def _build_vs_buy(registry: dict[str, dict]) -> dict:
+    """The build-versus-buy section's data. The section exists once the build-cost totals have been
+    collected. A vendor is bought when its annual list price is below the build cost amortised over
+    the year, plus the year's run cost, plus the maintenance allowance; otherwise it is built."""
+    if "bvb/build_cost" not in registry:
+        return {"bvb_present": False, "bvb_measures": [], "bvb_vendors": []}
+    threshold = sum(registry[f"bvb/{item}"]["value_cents"]
+                    for item in ("build_cost_amortised", "run_cost_annual", "maintenance_allowance"))
+    measures = []
+    for measure, label, unit in BUILD_MEASURES:
+        ref = f"ref/build_cost/{measure}"
+        if ref in registry:
+            row = _reference_row(registry, ref)
+            measures.append({"label": label, "ref": ref, "shown": _plain(row["value"]) + unit,
+                             "source": row["source"]})
+    run_ref = "ref/build_cost/run_cost_monthly_usd"
+    run = _reference_row(registry, run_ref)
+    build_source = _reference_row(registry, "ref/build_cost/build_cost_usd")["source"]
+    vendors = []
+    for number_id in sorted(i for i in registry if i.startswith(VENDOR_PREFIX)):
+        vendor = number_id[len(VENDOR_PREFIX):]
+        ref = f"ref/vendor_prices/{vendor}"
+        row = _reference_row(registry, ref)
+        vendors.append({
+            "id": number_id, "vendor": vendor, "product": row["product"], "ref": ref,
+            "verdict": "buy" if registry[number_id]["value_cents"] < threshold else "build",
+            "source_url": row["source_url"], "retrieved_on": row["retrieved_on"],
+        })
+    return {"bvb_present": True, "bvb_measures": measures, "bvb_vendors": vendors,
+            "bvb_run_ref": run_ref, "bvb_run_monthly": "$" + _plain(run["value"]), "bvb_run_source": run["source"],
+            "bvb_build_source": build_source}
+
+
 def _controls(con: duckdb.DuckDBPyConnection, month: str) -> list[str]:
     """The control IDs of the month's latest run: the run that closed it, else the last one recorded."""
     d = f"{month}-01"
@@ -229,6 +284,7 @@ def gather(con: duckdb.DuckDBPyConnection, month: str, registry: dict[str, dict]
         ],
         "controls": _controls(con, month),
         "scenario": _scenario(month, accounts, registry),
+        **_build_vs_buy(registry),
     }
     return accounts, sections
 
