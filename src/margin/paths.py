@@ -17,6 +17,7 @@ from .errors import EXIT_USAGE, MarginError
 ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_PRICES = "data/reference/model_prices.csv"
+DEFAULT_REFERENCE = "data/reference"
 # The committed `mini` books were generated against this price list, so the fixture
 # closes against it too, not against the author's real list.
 FIXTURE_PRICES = {"mini": "tests/fixtures/model_prices.csv"}
@@ -31,6 +32,11 @@ FIXTURE_BOOKS = {
 }
 
 
+def default_reference() -> Path:
+    """The reference directory: `MARGIN_REFERENCE_DIR`, else `data/reference` of the repository."""
+    return Path(os.environ.get("MARGIN_REFERENCE_DIR") or ROOT / DEFAULT_REFERENCE)
+
+
 @dataclass(frozen=True)
 class Paths:
     books: Path
@@ -40,6 +46,7 @@ class Paths:
     fixture: str | None
     truth_explicit: bool = False  # --truth or MARGIN_TRUTH was given
     prices: Path = Path(DEFAULT_PRICES)  # the pinned model price list
+    reference: Path = ROOT / DEFAULT_REFERENCE  # the directory of reference tables the close loads
 
     @property
     def lock(self) -> Path:
@@ -68,7 +75,7 @@ def resolve(
     config_path = Path(config or env.get("MARGIN_CONFIG_DIR") or FIXTURE_CONFIG.get(fixture or "", DEFAULT_CONFIG))
     explicit = truth is not None or bool(env.get("MARGIN_TRUTH"))
     prices_path = Path(env.get("MARGIN_PRICES") or FIXTURE_PRICES.get(fixture or "", DEFAULT_PRICES))
-    return Paths(books_path, truth_path, warehouse_path, config_path, fixture, explicit, prices_path)
+    return Paths(books_path, truth_path, warehouse_path, config_path, fixture, explicit, prices_path, default_reference())
 
 
 def parse_month(value: str) -> str:

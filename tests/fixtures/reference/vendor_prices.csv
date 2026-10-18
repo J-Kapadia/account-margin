@@ -1,0 +1,3 @@
+vendor,product,annual_list_price_usd,source_url,retrieved_on
+vendor_alpha,Alpha Margin,9000.00,https://example.com/alpha/pricing,2026-10-01
+vendor_beta,Beta Margin,24000.00,https://example.com/beta/pricing,2026-10-01

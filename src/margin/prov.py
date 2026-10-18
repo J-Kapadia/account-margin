@@ -7,7 +7,7 @@ its child IDs (a composite), so `explain` can re-derive the digest.
 
 `close` writes the families the month's `result_hash` covers (`cp/`, `pnl/`, `rollup/`, `flag/`
 and the two that explain a flag, `cpr/` and `cohort/`) and, outside the hash, the month-less
-`cfg/` and `ref/` records.
+`cfg/`, `ref/` and `bvb/` records.
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ import json
 import os
 import re
 import subprocess
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from pathlib import Path
 
 import duckdb
 
-from .errors import EXIT_PROVENANCE, MarginError
+from .errors import EXIT_PRECONDITION, EXIT_PROVENANCE, MarginError
 from .gen_config import Config
 from .paths import ROOT
 from .signoff import Signoff
@@ -399,6 +399,100 @@ def config_records(con: duckdb.DuckDBPyConnection, base: dict) -> list[dict]:
     return out
 
 
+def _ref_record(con: duckdb.DuckDBPyConnection, base: dict, stem: str, key: str, value: str) -> dict:
+    """`ref/<stem>/<value>`: a leaf over the rows of `raw.ref_<stem>` whose `key` column is `value`."""
+    table = f"raw.ref_{stem}"
+    query = _union([_frag(table, f'r."{key}" = \'{_q(value)}\'')])
+    rows = con.execute(query).fetchall()
+    shown = [{k: v for k, v in json.loads(r[2]).items() if not k.startswith("_")} for r in rows]
+    return {
+        **base, "number_id": f"ref/{stem}/{value}", "value_cents": None,
+        "value_text": json.dumps(shown, sort_keys=True), "unit": "ref", "step": "margin.load",
+        "input_digest": digest_rows([r[1] for r in rows]), "input_row_count": len(rows),
+        "source_query": query,
+    }
+
+
+BVB_STEP = "margin.prov.bvb"
+BUILD_COST_MEASURE = "build_cost_usd"
+RUN_COST_MEASURE = "run_cost_monthly_usd"
+AMORTISATION_MONTHS = 12
+MAINTENANCE_RATE = Decimal("0.10")  # of the build cost, per year
+
+
+def _usd_cents(text: str, what: str) -> int:
+    """A reference file's dollar amount as whole cents (half-even); anything else exits 4."""
+    try:
+        cents = (Decimal(text) * 100).quantize(Decimal(1), rounding=ROUND_HALF_EVEN)
+    except (InvalidOperation, TypeError, ValueError):
+        raise MarginError(EXIT_PRECONDITION, f"{what}: {text!r} is not a dollar amount") from None
+    if cents < 0:
+        raise MarginError(EXIT_PRECONDITION, f"{what}: {text!r} is not a dollar amount")
+    return int(cents)
+
+
+def _unique(rows: list[tuple[str, str]], what: str) -> dict[str, str]:
+    seen: dict[str, str] = {}
+    for key, value in rows:
+        if key in seen:
+            raise MarginError(EXIT_PRECONDITION, f"{what}: {key!r} appears more than once")
+        seen[key] = value
+    return seen
+
+
+def _has_table(con: duckdb.DuckDBPyConnection, table: str) -> bool:
+    return bool(con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'raw' AND table_name = ?", [table]
+    ).fetchone()[0])
+
+
+def bvb_records(con: duckdb.DuckDBPyConnection, run_id: str, signoff: Signoff) -> list[dict]:
+    """The build-vs-buy figures, in whole cents. `bvb/build_cost` and each `bvb/vendor_annual_cost/<vendor>`
+    are leaves over their rows of `raw.ref_build_cost` and `raw.ref_vendor_prices`; the other three are
+    composites over `bvb/build_cost` (the run cost also over the monthly run cost's `ref/` record).
+    There are none when the build-cost totals are not loaded or the table has no rows."""
+    if not _has_table(con, "ref_build_cost"):
+        return []
+    totals = _unique(con.execute("SELECT measure, value FROM raw.ref_build_cost").fetchall(), "build_cost.csv")
+    if not totals:
+        return []
+    for measure in (BUILD_COST_MEASURE, RUN_COST_MEASURE):
+        if measure not in totals:
+            raise MarginError(EXIT_PRECONDITION, f"build_cost.csv has no {measure} row")
+    base = _base(None, checks=[], run_id=run_id, signoff=signoff)
+
+    def leaf(number_id: str, query: str, cents: int) -> dict:
+        hashes = [r[1] for r in con.execute(query).fetchall()]
+        return _record(base, number_id, cents, None, "cents", BVB_STEP, digest_rows(hashes), len(hashes), query)
+
+    build_cents = _usd_cents(totals[BUILD_COST_MEASURE], BUILD_COST_MEASURE)
+    build = leaf("bvb/build_cost", _union([_frag("raw.ref_build_cost", f"r.measure = '{BUILD_COST_MEASURE}'")]),
+                 build_cents)
+    run_monthly = _ref_record(con, base, "build_cost", "measure", RUN_COST_MEASURE)
+    maintenance = int((Decimal(build_cents) * MAINTENANCE_RATE).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+    out = [
+        build,
+        composite_record(base, "bvb/build_cost_amortised", [build], value_cents=build_cents, step=BVB_STEP),
+        composite_record(
+            base, "bvb/run_cost_annual", [build, run_monthly], step=BVB_STEP,
+            value_cents=_usd_cents(totals[RUN_COST_MEASURE], RUN_COST_MEASURE) * AMORTISATION_MONTHS,
+        ),
+        composite_record(base, "bvb/maintenance_allowance", [build], value_cents=maintenance, step=BVB_STEP),
+    ]
+    if _has_table(con, "ref_vendor_prices"):
+        prices = _unique(
+            con.execute("SELECT vendor, annual_list_price_usd FROM raw.ref_vendor_prices WHERE vendor IS NOT NULL").fetchall(),
+            "vendor_prices.csv",
+        )
+        for vendor, price in sorted(prices.items()):
+            out.append(leaf(
+                f"bvb/vendor_annual_cost/{vendor}",
+                _union([_frag("raw.ref_vendor_prices", f"r.vendor = '{_q(vendor)}'")]),
+                _usd_cents(price, f"vendor_prices.csv {vendor}"),
+            ))
+    return out
+
+
 def reference_records(con: duckdb.DuckDBPyConnection, *, run_id: str, signoff: Signoff) -> list[dict]:
     """The month-less records: `cfg/<name>` and `ref/<file>/<key>`, one leaf per row key."""
     base = _base(None, checks=[], run_id=run_id, signoff=signoff)
@@ -417,15 +511,8 @@ def reference_records(con: duckdb.DuckDBPyConnection, *, run_id: str, signoff: S
         for (value,) in con.execute(
             f'SELECT DISTINCT "{key}" FROM raw.{table} WHERE "{key}" IS NOT NULL ORDER BY 1'
         ).fetchall():
-            query = _union([_frag(f"raw.{table}", f'r."{key}" = \'{_q(value)}\'')])
-            rows = con.execute(query).fetchall()
-            shown = [{k: v for k, v in json.loads(r[2]).items() if not k.startswith("_")} for r in rows]
-            out.append({
-                **base, "number_id": f"ref/{stem}/{value}", "value_cents": None,
-                "value_text": json.dumps(shown, sort_keys=True), "unit": "ref", "step": "margin.load",
-                "input_digest": digest_rows([r[1] for r in rows]), "input_row_count": len(rows),
-                "source_query": query,
-            })
+            out.append(_ref_record(con, base, stem, key, value))
+    out += bvb_records(con, run_id, signoff)
     return sorted(out, key=lambda r: r["number_id"])
 
 

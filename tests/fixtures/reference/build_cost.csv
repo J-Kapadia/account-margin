@@ -1,0 +1,7 @@
+measure,value,source,collected_on
+build_cost_usd,12000.00,manual,2026-10-01
+input_tokens,40000000.00,manual,2026-10-01
+output_tokens,8000000.00,manual,2026-10-01
+elapsed_hours,100.00,manual,2026-10-01
+review_minutes,600.00,manual,2026-10-01
+run_cost_monthly_usd,50.00,manual,2026-10-01

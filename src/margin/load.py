@@ -13,7 +13,7 @@ import duckdb
 from .books import months_between, read_books_id
 from .gen_config import ALLOCATION_FILE, POLICY_FILE, sha256_file
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, EXIT_USAGE, MarginError
-from .paths import ROOT
+from .paths import ROOT, default_reference
 from .warehouse import connect, month_date
 
 # table -> (csv file, SQL expression for the month of a row as YYYY-MM; None = not monthly).
@@ -143,23 +143,27 @@ def load_months(
         con.execute(f"DROP TABLE stage_{table}")
 
 
-def _reference_files(prices: Path) -> dict[str, Path]:
-    """Every data/reference/*.csv as `ref_<stem>`; the price list comes from `prices`."""
+def _reference_files(prices: Path, directory: Path) -> dict[str, Path]:
+    """Every `*.csv` of the reference directory as `ref_<stem>`; the price list comes from `prices`."""
     files = {
-        f"ref_{p.stem}": p for p in sorted(REFERENCE_DIR.glob("*.csv")) if p.name != PRICES_CSV
+        f"ref_{p.stem}": p for p in sorted(directory.glob("*.csv")) if p.name != PRICES_CSV
     }
     files["ref_model_prices"] = prices
     return files
 
 
-def load_reference(con: duckdb.DuckDBPyConnection, prices: Path) -> None:
+def load_reference(
+    con: duckdb.DuckDBPyConnection, prices: Path, reference_dir: Path | None = None
+) -> None:
     """Load the reference files into `raw.ref_*`, each row with a `_row_hash` and no month.
+
+    `reference_dir` is the directory they are read from: `MARGIN_REFERENCE_DIR`, else `data/reference`.
 
     A reference table is replaced by the file as it is now; a changed price enters the digests
     of the numbers that use it, which is how a restatement shows. An absent price
     list (the author has not sourced it yet) is an empty table, so the models still compile.
     """
-    for table, path in _reference_files(prices).items():
+    for table, path in _reference_files(prices, reference_dir or default_reference()).items():
         if path.is_file():
             cols = _columns(con, path)
             fields = " || chr(31) || ".join(f'coalesce("{c}", chr(0))' for c in cols)
