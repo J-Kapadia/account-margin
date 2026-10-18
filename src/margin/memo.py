@@ -9,6 +9,7 @@ accounts and which rules a section shows; the template names the IDs and `num` s
 `build` also writes the site around the page: one explain page for every number ID the page renders
 and for every ID beneath them, `sql/fct_contribution_profit.sql` (the compiled model `close` stored),
 the month's `values.csv`, and `llms.txt` and `index.html` listing the months whose memo exists.
+It also writes the planted-errors gallery from the captures committed beside it and closes nothing.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 from markupsafe import Markup, escape
 
-from . import prov, scenario
+from . import gallery, prov, scenario
 from . import explain as explain_mod
 from .dbt_runner import PUBLISHED_MODEL
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, MarginError
@@ -384,6 +385,7 @@ def index_html(months: list[str]) -> str:
     items = "".join(f'<li><a href="{escape(m)}/">{escape(m)}</a></li>' for m in months)
     return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Acme AI memos</title>'
             f'</head><body><h1>Acme AI memos</h1><ul>{items}</ul>'
+            '<p><a href="errors/index.html">Planted errors</a></p>'
             '<p><a href="llms.txt">llms.txt</a></p></body></html>\n')
 
 
@@ -412,6 +414,7 @@ def build(con: duckdb.DuckDBPyConnection, month: str, out: Path) -> list[Path]:
     _write(out / "sql" / f"{PUBLISHED_MODEL}.sql", sql, written)
     _write(out / month / "values.csv", values_csv(registry, month, accounts), written)
     _write(out / month / "index.html", html, written)
+    written += gallery.build(out, REPOSITORY)
     months = _built_months(out)
     _write(out / "llms.txt", llms_txt(months), written)
     _write(out / "index.html", index_html(months), written)

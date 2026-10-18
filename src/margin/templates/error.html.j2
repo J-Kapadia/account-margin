@@ -1,0 +1,70 @@
+{#- One planted error: what was planted, what the close answered, which control named it, and the fix.
+    Every value comes from the module and the capture of the error and is escaped. -#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ case.title }}</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .25rem .5rem; border-bottom: 1px solid #ccc; vertical-align: top; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  code, td.row { overflow-wrap: anywhere; }
+  a { color: #0b4f9c; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } th, td { border-color: #444; } a { color: #8ab4f8; } }
+</style>
+</head>
+<body>
+<h1>{{ case.title }}</h1>
+<p><a href="index.html">All planted errors</a> · <a href="../index.html">All memos</a></p>
+
+{% set capture = case.capture %}
+{% set target = capture.target %}
+<section id="planted">
+<h2>What was planted</h2>
+<p>{{ case.planted }}</p>
+<dl>
+<dt>File</dt><dd data-field="file">{{ target.file }}</dd>
+<dt>Key</dt><dd data-field="key"><code>{{ target.key }}</code></dd>
+<dt>Ordinal</dt><dd data-field="ordinal">{{ target.ordinal }}</dd>
+{% if target.account_id is defined %}<dt>Account</dt><dd data-field="account">{{ target.account_id }}</dd>
+{% endif %}{% if target.gl_code is defined %}<dt>GL code</dt><dd data-field="gl-code">{{ target.gl_code }}</dd>
+{% endif %}</dl>
+</section>
+
+<section id="close">
+<h2>What the close answered</h2>
+<p>Exit code <span data-field="exit">{{ capture.close.exit }}</span> for {{ capture.month }}: <span data-field="message">{{ capture.close.message }}</span></p>
+<table data-field="controls">
+<thead><tr><th>Control</th><th>Status</th><th>Violating rows</th></tr></thead>
+<tbody>
+{% for control in capture.close.controls %}<tr><td>{{ control.id }}</td><td>{{ control.status }}</td><td>{{ control.violating_rows }}</td></tr>
+{% endfor %}</tbody>
+</table>
+{% for failed in capture.close.failed_controls %}
+<h3>{{ failed.id }}</h3>
+<pre data-control="{{ failed.id }}">{{ failed.detail | join('\n') }}</pre>
+{% endfor %}
+</section>
+
+<section id="caught">
+<h2>How it was caught</h2>
+<p>{{ case.caught }}</p>
+<p>The control that names it is <a href="{{ repository }}/blob/main/controls/{{ case.control }}.sql">{{ case.control }}</a>.</p>
+</section>
+
+<section id="remediation">
+<h2>How to fix the books</h2>
+<ol>
+{% for step in case.remediation %}<li>{{ step }}</li>
+{% endfor %}</ol>
+</section>
+
+<footer>
+<p>This capture came from the committed example books ({{ capture.books }}) with seed {{ capture.seed }}.
+<code>tests/test_gallery_{{ case.error }}.py</code> re-runs the close and proves it current.</p>
+</footer>
+</body>
+</html>

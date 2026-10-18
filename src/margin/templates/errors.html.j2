@@ -1,0 +1,27 @@
+{#- The index of the planted-errors gallery: one line per captured error, in the order `margin inject` lists them. -#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planted errors</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
+  a { color: #0b4f9c; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } a { color: #8ab4f8; } }
+</style>
+</head>
+<body>
+<h1>Planted errors</h1>
+<p>Each error is planted in a copy of the example books, the close is run on the copy, and the control that
+names the error is shown with the steps that fix the books.</p>
+{% if cases %}
+<ul id="cases">
+{% for case in cases %}<li><a href="{{ case.error }}.html">{{ case.title }}</a>: {{ case.control }}</li>
+{% endfor %}</ul>
+{% else %}
+<p>No error has been captured yet.</p>
+{% endif %}
+<p><a href="../index.html">All memos</a></p>
+</body>
+</html>
