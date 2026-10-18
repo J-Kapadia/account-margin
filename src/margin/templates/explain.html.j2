@@ -1,0 +1,50 @@
+{#- One number: its value, step and digests, the query that selects its source rows, and either the
+    rows (at most a page's worth; the rest are counted) or the numbers it is built from. -#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ node.number_id }}</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .25rem .5rem; border-bottom: 1px solid #ccc; vertical-align: top; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  code, td.row { overflow-wrap: anywhere; }
+  a { color: #0b4f9c; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } th, td { border-color: #444; } a { color: #8ab4f8; } }
+</style>
+</head>
+<body>
+<h1>{{ node.number_id }}</h1>
+<p>{% if memo %}<a href="{{ memo }}">Back to the memo</a> · {% endif %}<a href="{{ root }}index.html">All memos</a></p>
+<dl>
+<dt>Value</dt><dd data-field="value">{{ value }}</dd>
+<dt>Step</dt><dd data-field="step">{{ node.step }}</dd>
+<dt>Input rows</dt><dd data-field="input-row-count">{{ node.input_row_count }}</dd>
+<dt>Stored digest</dt><dd data-field="stored-digest"><code>{{ node.input_digest }}</code></dd>
+<dt>Recomputed digest</dt><dd data-field="recomputed-digest"><code>{{ recomputed }}</code></dd>
+<dt>Verified</dt><dd data-field="verified">{{ 'yes' if verified else 'no' }}</dd>
+</dl>
+
+<h2>Source query</h2>
+<pre data-field="source-query">{{ node.source_query }}</pre>
+
+{% if node.children is defined %}
+<h2>Built from</h2>
+<ul data-field="children">
+{% for child in children %}<li><a href="{{ root }}explain/{{ child }}.html">{{ child }}</a></li>
+{% endfor %}</ul>
+{% else %}
+<h2>Source rows</h2>
+<table data-field="rows">
+<thead><tr><th>Table</th><th>Row hash</th><th>Row</th></tr></thead>
+<tbody>
+{% for r in shown_rows %}<tr><td>{{ r.source_table }}</td><td><code>{{ r._row_hash }}</code></td><td class="row">{{ r.row }}</td></tr>
+{% endfor %}</tbody>
+</table>
+{% if more_rows %}<p data-field="more-rows">{{ more_rows }} more rows: run margin explain {{ node.number_id }}</p>{% endif %}
+{% endif %}
+</body>
+</html>

@@ -11,9 +11,12 @@ from pathlib import Path
 from .errors import EXIT_INTERNAL, MarginError
 from .gen_config import load_config
 from .paths import ROOT
-from .warehouse import MEMORY_LIMIT_VAR, THREADS_VAR, memory_limit, threads
+from .warehouse import MEMORY_LIMIT_VAR, THREADS_VAR, connect, init_schemas, memory_limit, threads
 
 DBT_DIR = ROOT / "dbt"
+# The model whose compiled SQL the memo publishes, and where dbt writes it under the target path.
+PUBLISHED_MODEL = "fct_contribution_profit"
+COMPILED_MODEL_PATH = Path("compiled") / "margin" / "models" / "marts" / f"{PUBLISHED_MODEL}.sql"
 _DBT_MAIN = "import sys; from dbt.cli.main import cli; sys.exit(cli())"
 
 
@@ -85,6 +88,23 @@ def build(warehouse: Path, config_dir: Path) -> None:
     """Full-refresh every model and run its tests against `warehouse`, with the configuration,
     except the scenario's: it needs `scenario.inputs`, and a close must not erase its results."""
     _run(warehouse, config_dir, "--exclude", "tag:scenario")
+    store_compiled_sql(warehouse)
+
+
+def store_compiled_sql(warehouse: Path) -> None:
+    """Copy the compiled SQL of the published model into `state.model_sql`, where the memo, a
+    reader that never runs dbt, finds it. Opens its own connection: call it once dbt has exited."""
+    target = os.environ.get("DBT_TARGET_PATH") or str(work_dir(warehouse) / "target")
+    compiled = ROOT / target / COMPILED_MODEL_PATH
+    if not compiled.is_file():
+        raise MarginError(EXIT_INTERNAL, f"dbt did not write the compiled SQL of {PUBLISHED_MODEL}: {compiled}")
+    con = connect(warehouse)
+    try:
+        init_schemas(con)
+        con.execute("INSERT OR REPLACE INTO state.model_sql VALUES (?, ?)",
+                    [PUBLISHED_MODEL, compiled.read_text(encoding="utf-8")])
+    finally:
+        con.close()
 
 
 def build_scenario(warehouse: Path, config_dir: Path) -> None:

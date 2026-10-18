@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS state.close_state (
     closed_run_id VARCHAR, restated_from VARCHAR
 );
 CREATE TABLE IF NOT EXISTS state.books (books_id VARCHAR);
+CREATE TABLE IF NOT EXISTS state.model_sql (model VARCHAR PRIMARY KEY, sql VARCHAR);
 CREATE TABLE IF NOT EXISTS scenario.inputs (
     month DATE, "case" VARCHAR, k INTEGER, account_id VARCHAR, inference_cents BIGINT
 );

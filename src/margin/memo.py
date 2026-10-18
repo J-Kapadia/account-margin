@@ -5,10 +5,18 @@ The memo is a reader: it opens the warehouse read-only and writes nothing to it.
 unrounded `data-value`, and fails the build (`CHK-MEMO-NUM`, exit 3) for an ID with no record.
 `pct` is the same span with a percent sign after a figure. The queries here choose which
 accounts and which rules a section shows; the template names the IDs and `num` supplies every value.
+
+`build` also writes the site around the page: one explain page for every number ID the page renders
+and for every ID beneath them, `sql/fct_contribution_profit.sql` (the compiled model `close` stored),
+the month's `values.csv`, and `llms.txt` and `index.html` listing the months whose memo exists.
 """
 
 from __future__ import annotations
 
+import csv
+import io
+import json
+import re
 from pathlib import Path
 
 import duckdb
@@ -17,6 +25,8 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 from markupsafe import Markup, escape
 
 from . import prov
+from . import explain as explain_mod
+from .dbt_runner import PUBLISHED_MODEL
 from .errors import EXIT_CONTROL, EXIT_PRECONDITION, MarginError
 from .money import format_cents
 
@@ -24,6 +34,12 @@ TEMPLATES = Path(__file__).resolve().parent / "templates"
 REPOSITORY = "https://github.com/J-Kapadia/account-margin"
 # How many accounts the top and bottom tables show at most.
 RANKED = 5
+# How many source rows an explain page prints; the rest are counted and left to `margin explain`.
+EXPLAIN_ROWS = 25
+OWNER = "finance owner (synthetic)"
+DEFINITION = "contribution profit in cents is `contribution_cents()` in dbt/macros/contribution_cents.sql"
+NUM_ID = re.compile(r'data-num-id="([^"]+)"')
+MONTH_DIR = re.compile(r"\d{4}-\d{2}")
 # The action for each firm-flagged account, by reason code: (machine key, text shown).
 REPRICE_AT_RENEWAL = ("reprice_at_renewal", "Reprice at renewal")
 MIGRATE = ("migrate_per_model_plan", "Migrate to a plan priced per model")
@@ -60,7 +76,8 @@ def make_env(registry: dict[str, dict]) -> Environment:
         shown = format_cents(cents) if cents is not None and rec["unit"] == "cents" else rec["value_text"]
         if suffix and shown != "n/a":
             shown = f"{shown}{suffix}"
-        return Markup('<span data-num-id="{}" data-value="{}">{}</span>').format(number_id, str(value), shown)
+        return Markup('<a href="../explain/{}.html"><span data-num-id="{}" data-value="{}">{}</span></a>').format(
+            number_id, number_id, str(value), shown)
 
     env.filters["num"] = span
     env.filters["pct"] = lambda number_id: span(number_id, "%")
@@ -167,19 +184,121 @@ def gather(con: duckdb.DuckDBPyConnection, month: str, registry: dict[str, dict]
     return accounts, sections
 
 
+def _shown(node: dict) -> str:
+    """The value of a node as the explain page prints it."""
+    if node.get("value_cents") is not None:
+        return f"{format_cents(node['value_cents'])} ({node['value_cents']} cents)" \
+            if node.get("unit") == "cents" else str(node["value_cents"])
+    return str(node.get("value_text") or "")
+
+
+def explain_page(node: dict) -> str:
+    """The explain page of one node of an `explain` tree: the first appearance of an ID, so it
+    carries its rows or its children. Digests are recomputed here from what the node holds."""
+    number_id = node["number_id"]
+    rows = sorted(node.get("rows", []), key=lambda r: r["_row_hash"])
+    children = node.get("children")
+    if children is not None:
+        recomputed = prov.digest_children([(c["number_id"], c["input_digest"]) for c in children])
+    else:
+        recomputed = prov.digest_rows([r["_row_hash"] for r in node.get("rows", [])])
+    root = "../" * (number_id.count("/") + 1)
+    env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html", "j2"]),
+                      undefined=StrictUndefined)
+    return env.get_template("explain.html.j2").render(
+        node=node, value=_shown(node), recomputed=recomputed, root=root,
+        verified=recomputed == node["input_digest"] and bool(node.get("digest_verified")),
+        shown_rows=[{**r, "row": json.dumps(r["row"], sort_keys=True)} for r in rows[:EXPLAIN_ROWS]],
+        more_rows=max(len(rows) - EXPLAIN_ROWS, 0),
+        children=[c["number_id"] for c in children or []],
+        memo=f"{root}{node['month']}/index.html" if node.get("month") else None,
+    )
+
+
+def _pages(con: duckdb.DuckDBPyConnection, month: str, ids: set[str]) -> dict[str, str]:
+    """An explain page for every ID in `ids` and every ID beneath them, by number ID. A composite
+    is walked first: its tree holds the pages of its descendants, which are then not walked again."""
+    composites = {r[0] for r in con.execute(
+        "SELECT number_id FROM prov.records WHERE month = ? AND starts_with(source_query, '[')",
+        [f"{month}-01"]).fetchall()}
+    pages: dict[str, str] = {}
+
+    def collect(node: dict) -> None:
+        if node.get("repeated") or node.get("truncated") or node["number_id"] in pages:
+            return
+        pages[node["number_id"]] = explain_page(node)
+        for child in node.get("children", []):
+            collect(child)
+
+    for number_id in sorted(ids, key=lambda i: (i not in composites, i)):
+        if number_id not in pages:
+            collect(explain_mod.explain(con, number_id))
+    return pages
+
+
+def _compiled_sql(con: duckdb.DuckDBPyConnection) -> str:
+    try:
+        row = con.execute("SELECT sql FROM state.model_sql WHERE model = ?", [PUBLISHED_MODEL]).fetchone()
+    except duckdb.CatalogException:
+        row = None
+    if row is None:
+        raise MarginError(EXIT_PRECONDITION, "compiled SQL not stored: run close")
+    return row[0]
+
+
+def values_csv(registry: dict[str, dict], month: str, accounts: list[dict]) -> str:
+    """`number_id,value` for every ID of the agreement set: each account's six cents components and
+    margin as the exact four-decimal string (or `n/a`), then the six month totals."""
+    ids = [f"cp/{month}/{a['account_id']}/{c}" for a in accounts for c in (*prov.LEAF_COMPONENTS, "contribution_profit", "margin_pct")]
+    ids += [f"rollup/{month}/{m}" for m in prov.ROLLUP_SUMS]
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["number_id", "value"])
+    for number_id in ids:
+        rec = registry[number_id]
+        writer.writerow([number_id, rec["value_text"] if rec["value_cents"] is None else rec["value_cents"]])
+    return out.getvalue()
+
+
+def _built_months(out: Path) -> list[str]:
+    return sorted(d.name for d in out.iterdir() if MONTH_DIR.fullmatch(d.name) and (d / "index.html").is_file())
+
+
+def llms_txt(months: list[str]) -> str:
+    lines = [f"# {PUBLISHED_MODEL}", "", f"owner: {OWNER}", f"definition: {DEFINITION}", "",
+             f"- [sql](sql/{PUBLISHED_MODEL}.sql)"]
+    lines += [f"- [values {m}]({m}/values.csv)" for m in months]
+    return "\n".join(lines) + "\n"
+
+
+def index_html(months: list[str]) -> str:
+    items = "".join(f'<li><a href="{escape(m)}/">{escape(m)}</a></li>' for m in months)
+    return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Acme AI memos</title>'
+            f'</head><body><h1>Acme AI memos</h1><ul>{items}</ul>'
+            '<p><a href="llms.txt">llms.txt</a></p></body></html>\n')
+
+
+def _write(path: Path, text: str, written: list[Path]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    written.append(path)
+
+
 def build(con: duckdb.DuckDBPyConnection, month: str, out: Path) -> list[Path]:
-    """Render the month's page and a root index into `out`; return the files written."""
+    """Render the month's page and its explain pages, values and the site files into `out`;
+    return the files written. The root index and `llms.txt` list the months found in `out`."""
+    sql = _compiled_sql(con)
     registry = _registry(con, month)
     accounts, sections = gather(con, month, registry)
     html = render(month, accounts, registry, sections)
-    page = out / month / "index.html"
-    page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text(html, encoding="utf-8")
-    index = out / "index.html"
-    index.write_text(
-        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Acme AI memos</title>'
-        f'</head><body><h1>Acme AI memos</h1><ul><li><a href="{escape(month)}/">{escape(month)}</a>'
-        "</li></ul></body></html>\n",
-        encoding="utf-8",
-    )
-    return [index, page]
+    pages = _pages(con, month, set(NUM_ID.findall(html)))
+    written: list[Path] = []
+    for number_id, text in pages.items():
+        _write(out / "explain" / f"{number_id}.html", text, written)
+    _write(out / "sql" / f"{PUBLISHED_MODEL}.sql", sql, written)
+    _write(out / month / "values.csv", values_csv(registry, month, accounts), written)
+    _write(out / month / "index.html", html, written)
+    months = _built_months(out)
+    _write(out / "llms.txt", llms_txt(months), written)
+    _write(out / "index.html", index_html(months), written)
+    return written
