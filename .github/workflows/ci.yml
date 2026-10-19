@@ -19,3 +19,17 @@ jobs:
       - run: uv sync --frozen
       - run: uv lock --check
       - run: uv run pytest -q --ignore=tests/test_scrub_check.py
+
+  full:
+    # The whole definition of done, as the dispatcher's clean-extraction gate runs it, on every push to main.
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.0"
+      - name: Full definition of done
+        run: timeout 3600 scripts/definition-of-done.sh
