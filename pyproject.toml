@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "account-margin"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Contribution profit by customer account, rolled forward monthly, with controls."
 readme = "README.md"
 license = "MIT"

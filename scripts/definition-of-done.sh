@@ -72,6 +72,8 @@ uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" --
 uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --check --json
 uv run margin explain rollup/2026-04/revenue --fixture mini --warehouse "$work/mini.duckdb" --json
 uv run margin explain cfg/policy --fixture mini --warehouse "$work/mini.duckdb"
+# doctor over the closed warehouse: healthy, exit 0 (the books, the sign-off and the lock are all in order).
+uv run margin doctor --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb"
 # The token-price scenario: proved against its hand-worked reference in its own temporary warehouse,
 # then run on the closed March of the `mini` warehouse, with the first record of its summary explained.
 MARGIN_SIGNOFF_DIR=tests/fixtures/signoff uv run margin scenario --check
@@ -125,6 +127,9 @@ uv run margin explain bvb/maintenance_allowance --fixture mini --warehouse "$wor
 uv run margin scenario --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/bvb.duckdb" --json
 uv run margin memo --month 2026-03 --fixture mini --warehouse "$work/bvb.duckdb" --out "$work/bvb-site" --json
 grep -q 'bvb/build_cost' "$work/bvb-site/2026-03/index.html"
+
+# The lock file must agree with pyproject.toml.
+uv lock --check
 
 if [ "$fast" -eq 1 ]; then
   uv run pytest -q -m "not slow"
