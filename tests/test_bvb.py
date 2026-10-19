@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import duckdb
 import pytest
 
-from conftest import ROOT, close_mini, connect, margin
+from conftest import Result, ROOT, close_mini, connect, margin, shared_dir
 from margin import prov
 from margin.errors import MarginError
 
@@ -74,11 +74,28 @@ def bvb(warehouse: Path) -> dict[str, tuple]:
         }
 
 
+@pytest.fixture(scope="session")
+def closed_with_fixture_master(tmp_path_factory) -> Path:
+    """One close of March on the reference tables plus the synthetic files, for the whole run; the
+    directory holds the warehouse and the close's JSON. Read-only for the tests."""
+    def build(directory: Path) -> None:
+        reference = directory / "reference"
+        reference.mkdir()
+        for source in (*sorted((ROOT / "data" / "reference").glob("*.csv")), *sorted(FIXTURE_DIR.glob("*.csv"))):
+            shutil.copy(source, reference / source.name)
+        result = close_with(reference, directory / "w.duckdb")
+        assert result.code == 0, result.stderr
+        (directory / "close.json").write_text(result.stdout)
+
+    return shared_dir(tmp_path_factory, "bvb_closed", build)
+
+
 @pytest.fixture
-def closed_with_fixture(reference_dir, tmp_path):
+def closed_with_fixture(closed_with_fixture_master, tmp_path):
+    """A private copy of the shared close's warehouse, and the close's result."""
     warehouse = tmp_path / "w.duckdb"
-    result = close_with(reference_dir, warehouse)
-    assert result.code == 0, result.stderr
+    shutil.copy(closed_with_fixture_master / "w.duckdb", warehouse)
+    result = Result(0, (closed_with_fixture_master / "close.json").read_text(), "")
     return warehouse, result
 
 
@@ -130,9 +147,8 @@ def test_a_vendor_figure_explains_to_its_row(closed_with_fixture):
     assert "= 900000 cents" in result.stdout and "raw.ref_vendor_prices" in result.stdout
 
 
-def test_provenance_passes_on_a_second_close(reference_dir, tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    first = close_with(reference_dir, warehouse)
+def test_provenance_passes_on_a_second_close(reference_dir, closed_with_fixture):
+    warehouse, first = closed_with_fixture  # the first close, shared; the second runs on a copy of it
     second = close_with(reference_dir, warehouse, "--check")
     assert first.code == 0 and second.code == 0, second.stderr
     statuses = {c["id"]: c["status"] for c in second.json["controls"]}

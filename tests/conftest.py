@@ -295,3 +295,71 @@ def mini_closed_copy(mini_closed, tmp_path) -> Path:
     copy = tmp_path / "w.duckdb"
     shutil.copy(mini_closed, copy)
     return copy
+
+
+@pytest.fixture(scope="session")
+def mini_closed_march(tmp_path_factory) -> Path:
+    """A warehouse with `mini` closed through 2026-03 by the CLI; read-only for the tests."""
+    def build(directory: Path) -> None:
+        result = close_mini(directory / "w.duckdb", "2026-03")
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "mini_closed_march", build) / "w.duckdb"
+
+
+@pytest.fixture
+def mini_closed_march_copy(mini_closed_march, tmp_path) -> Path:
+    """A private copy of the warehouse closed through 2026-03, for tests that change it."""
+    copy = tmp_path / "w.duckdb"
+    shutil.copy(mini_closed_march, copy)
+    return copy
+
+
+@pytest.fixture(scope="session")
+def mini_rolled_forward(tmp_path_factory, mini_closed_march) -> Path:
+    """`mini` closed through 2026-03, then rolled forward to 2026-04 (February and March locked, April
+    open); read-only for the tests."""
+    def build(directory: Path) -> None:
+        shutil.copy(mini_closed_march, directory / "w.duckdb")
+        result = margin("rollforward", "--fixture", "mini", "--month", "2026-04", "--json",
+                        "--config", str(MINI_CONFIG), "--warehouse", str(directory / "w.duckdb"))
+        assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "mini_rolled_forward", build) / "w.duckdb"
+
+
+@pytest.fixture
+def mini_rolled_forward_copy(mini_rolled_forward, tmp_path) -> Path:
+    """A private copy of the rolled-forward warehouse, for tests that change it."""
+    copy = tmp_path / "w.duckdb"
+    shutil.copy(mini_rolled_forward, copy)
+    return copy
+
+
+# ------------------------------------------------------------------ the scenario and the memo site over `mini`
+
+
+@pytest.fixture(scope="session")
+def scenario_warehouse(tmp_path_factory, mini_closed) -> Path:
+    """A copy of the closed `mini` warehouse with the scenario run for 2026-03 and 2026-04; read-only
+    for the tests."""
+    def build(directory: Path) -> None:
+        shutil.copy(mini_closed, directory / "w.duckdb")
+        for month in ("2026-03", "2026-04"):
+            result = margin("scenario", "--fixture", "mini", "--month", month, "--json", "--config", str(MINI_CONFIG),
+                            "--warehouse", str(directory / "w.duckdb"))
+            assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "memo_check_warehouse", build) / "w.duckdb"
+
+
+@pytest.fixture(scope="session")
+def built_site(tmp_path_factory, scenario_warehouse) -> Path:
+    """The memo site for 2026-03 and 2026-04, two of the fixture's three months; read-only for the
+    tests, which copy it when they change it."""
+    def build(directory: Path) -> None:
+        for month in ("2026-03", "2026-04"):
+            result = margin("memo", "--month", month, "--out", str(directory), "--warehouse", str(scenario_warehouse))
+            assert result.code == 0, result.stderr
+
+    return shared_dir(tmp_path_factory, "memo_check_site", build)

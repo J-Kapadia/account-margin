@@ -1,6 +1,6 @@
 """CTL-LOCK: a closed or locked month whose books or results changed fails the close with exit 3,
 names the table and month, and leaves `state.close_state` as it was. A re-close of an unchanged
-locked month passes the control. Each test works in its own temporary warehouse on `mini`.
+locked month passes the control. Each test works on its own copy of a shared warehouse on `mini`.
 """
 
 from __future__ import annotations
@@ -45,16 +45,6 @@ def _close_books(books, warehouse, month, *extra):
                   "--config", str(MINI_CONFIG), "--month", month, "--json", *extra)
 
 
-def _rolled_forward(tmp_path):
-    """March closed, then rolled forward to April: February and March are locked, April is open."""
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, "2026-03").code == 0
-    result = margin("rollforward", "--fixture", "mini", "--month", "2026-04", "--json",
-                    "--config", str(MINI_CONFIG), "--warehouse", str(warehouse))
-    assert result.code == 0, result.stderr
-    return warehouse
-
-
 def _lock_rows(warehouse):
     with connect(str(warehouse), read_only=True) as con:
         return con.execute(
@@ -63,8 +53,12 @@ def _lock_rows(warehouse):
         ).fetchall()
 
 
-def test_a_locked_month_whose_books_changed_fails_ctl_lock_and_keeps_its_state(tmp_path):
-    warehouse = _rolled_forward(tmp_path)
+# `mini_rolled_forward_copy` is March closed, then rolled forward to April: February and March are
+# locked, April is open.
+
+
+def test_a_locked_month_whose_books_changed_fails_ctl_lock_and_keeps_its_state(mini_rolled_forward_copy, tmp_path):
+    warehouse = mini_rolled_forward_copy
     assert {m: s for m, s, *_ in _states(warehouse)} == {
         "2026-02": "locked", "2026-03": "locked", "2026-04": "open"}
     before = _states(warehouse)
@@ -83,9 +77,8 @@ def test_a_locked_month_whose_books_changed_fails_ctl_lock_and_keeps_its_state(t
     assert _states(warehouse) == before
 
 
-def test_a_closed_month_whose_books_changed_fails_ctl_lock_and_keeps_its_state(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, "2026-04").code == 0
+def test_a_closed_month_whose_books_changed_fails_ctl_lock_and_keeps_its_state(mini_closed_copy, tmp_path):
+    warehouse = mini_closed_copy  # every month of `mini` closed, as a close of April leaves it
     before = _states(warehouse)
     books = _books_copy(tmp_path)
     _bump_gl_row(books, "2026-04", "4000")
@@ -98,8 +91,8 @@ def test_a_closed_month_whose_books_changed_fails_ctl_lock_and_keeps_its_state(t
     assert _states(warehouse) == before
 
 
-def test_a_re_close_of_a_locked_month_is_a_no_op_that_passes_ctl_lock(tmp_path):
-    warehouse = _rolled_forward(tmp_path)
+def test_a_re_close_of_a_locked_month_is_a_no_op_that_passes_ctl_lock(mini_rolled_forward_copy):
+    warehouse = mini_rolled_forward_copy
     before = _states(warehouse)
 
     result = close_mini(warehouse, "2026-03")
@@ -111,16 +104,16 @@ def test_a_re_close_of_a_locked_month_is_a_no_op_that_passes_ctl_lock(tmp_path):
     assert ("2026-03", "pass") in _lock_rows(warehouse)
 
 
-def test_a_failed_ctl_lock_is_recorded_in_the_control_results(tmp_path):
-    warehouse = _rolled_forward(tmp_path)
+def test_a_failed_ctl_lock_is_recorded_in_the_control_results(mini_rolled_forward_copy, tmp_path):
+    warehouse = mini_rolled_forward_copy
     books = _books_copy(tmp_path)
     _bump_gl_row(books, "2026-03", "4000")
     assert _close_books(books, warehouse, "2026-04").code == 3
     assert ("2026-03", "fail") in _lock_rows(warehouse)
 
 
-def test_a_changed_input_digest_of_a_locked_month_fails_ctl_lock(tmp_path):
-    warehouse = _rolled_forward(tmp_path)
+def test_a_changed_input_digest_of_a_locked_month_fails_ctl_lock(mini_rolled_forward_copy):
+    warehouse = mini_rolled_forward_copy
     with connect(str(warehouse)) as con:
         con.execute("UPDATE state.close_state SET input_digest = 'tampered' WHERE month = DATE '2026-03-01'")
     before = _states(warehouse)
@@ -133,8 +126,8 @@ def test_a_changed_input_digest_of_a_locked_month_fails_ctl_lock(tmp_path):
     assert _states(warehouse) == before
 
 
-def test_check_on_a_locked_month_exits_0_and_changes_no_state(tmp_path):
-    warehouse = _rolled_forward(tmp_path)
+def test_check_on_a_locked_month_exits_0_and_changes_no_state(mini_rolled_forward_copy):
+    warehouse = mini_rolled_forward_copy
     before = _states(warehouse)
 
     result = close_mini(warehouse, "2026-03", "--check")

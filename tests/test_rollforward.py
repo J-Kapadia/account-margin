@@ -1,6 +1,6 @@
 """`rollforward`: lock the earlier closed months and load the next month, on the committed `mini` books.
 
-Each test works in its own temporary warehouse.
+Each test works in its own temporary warehouse, a copy of a shared one where the test starts from a close.
 """
 
 from __future__ import annotations
@@ -72,9 +72,8 @@ def _planted(month: str) -> dict[str, str]:
     return {p["account_id"]: p["reason_code"] for p in planted[month]}
 
 
-def test_rollforward_locks_march_and_april_closes_against_the_answer_key(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, "2026-03").code == 0
+def test_rollforward_locks_march_and_april_closes_against_the_answer_key(mini_closed_march_copy):
+    warehouse = mini_closed_march_copy
     before = _state(warehouse)
 
     result = rollforward(warehouse, "2026-04")
@@ -98,10 +97,8 @@ def test_rollforward_locks_march_and_april_closes_against_the_answer_key(tmp_pat
     assert _firm(warehouse, "2026-04") == _planted("2026-04")
 
 
-def test_a_second_rollforward_changes_nothing(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, "2026-03").code == 0
-    assert rollforward(warehouse, "2026-04").code == 0
+def test_a_second_rollforward_changes_nothing(mini_rolled_forward_copy):
+    warehouse = mini_rolled_forward_copy  # March closed, then rolled forward once
     state, counts = _state(warehouse), _raw_counts(warehouse)
 
     again = rollforward(warehouse, "2026-04")
@@ -119,9 +116,8 @@ def test_rollforward_on_a_fresh_warehouse_closes_the_earlier_months_itself(tmp_p
     assert _statuses(warehouse) == {"2026-02": "locked", "2026-03": "locked", "2026-04": "open"}
 
 
-def test_a_month_loaded_by_an_earlier_close_is_recorded_without_a_reload(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, "2026-04").code == 0
+def test_a_month_loaded_by_an_earlier_close_is_recorded_without_a_reload(mini_closed_copy):
+    warehouse = mini_closed_copy  # April closed, with the catch-up before it
     counts = _raw_counts(warehouse)
     # April is closed already: nothing is locked below it that is not closed, and nothing reloads.
     result = rollforward(warehouse, "2026-04")
@@ -139,7 +135,7 @@ def test_a_month_outside_the_window_exits_2_naming_the_range(tmp_path):
     assert not warehouse.exists()
 
 
-def test_a_month_without_books_exits_4_and_writes_nothing(tmp_path, mini_books_copy):
+def test_a_month_without_books_exits_4_and_writes_nothing(tmp_path, mini_books_copy, mini_closed_march):
     shutil.copy(MINI_BOOKS.parent / "books.manifest.sha256", tmp_path / "books.manifest.sha256")
     invoices = mini_books_copy / "invoices.csv"
     with invoices.open(newline="") as f:
@@ -154,7 +150,7 @@ def test_a_month_without_books_exits_4_and_writes_nothing(tmp_path, mini_books_c
     assert result.json["message"] == "no books for month 2026-04"
     assert not warehouse.exists()  # not even the catch-up close ran
 
-    assert close_mini(warehouse, "2026-03").code == 0
+    shutil.copy(mini_closed_march, warehouse)  # March closed
     state, counts = _state(warehouse), _raw_counts(warehouse)
     again = rollforward(warehouse, "2026-04", "--books", str(mini_books_copy))
     assert again.code == 4 and again.json["message"] == "no books for month 2026-04"
@@ -170,8 +166,8 @@ def test_without_a_sign_off_it_exits_4_with_the_gate_control_and_writes_nothing(
     assert not warehouse.exists()
 
 
-def test_json_output_validates_against_the_envelope_schema(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
+def test_json_output_validates_against_the_envelope_schema(mini_closed_march_copy, tmp_path):
+    warehouse = mini_closed_march_copy
     ok = rollforward(warehouse, "2026-04")
     assert ok.code == 0
     ENVELOPE.validate(ok.json)

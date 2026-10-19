@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import MINI_CONFIG, connect, margin, shared_dir
+from conftest import connect, margin
 from margin import memo_check
 
 MONTH = "2026-03"
@@ -21,30 +21,6 @@ OTHER = "2026-04"
 CITE = '<span data-literal="cite" data-ref-id="ref/list_price_series/large">7.5000</span>'
 LEAF = f"cp/{MONTH}/acct_0001/revenue"
 CHECKS = ("CHK-MEMO-NUM", "CHK-MEMO-QUOTE", "CHK-MEMO-SITE")
-
-
-@pytest.fixture(scope="module")
-def scenario_warehouse(tmp_path_factory, mini_closed) -> Path:
-    """A copy of the closed `mini` warehouse with the scenario run for two months; read-only for the tests."""
-    def build(directory: Path) -> None:
-        shutil.copy(mini_closed, directory / "w.duckdb")
-        for month in (MONTH, OTHER):
-            result = margin("scenario", "--fixture", "mini", "--month", month, "--json", "--config", str(MINI_CONFIG),
-                            "--warehouse", str(directory / "w.duckdb"))
-            assert result.code == 0, result.stderr
-
-    return shared_dir(tmp_path_factory, "memo_check_warehouse", build) / "w.duckdb"
-
-
-@pytest.fixture(scope="module")
-def built_site(tmp_path_factory, scenario_warehouse) -> Path:
-    """A site with the memos of two of the fixture's three months; read-only for the tests."""
-    def build(directory: Path) -> None:
-        for month in (MONTH, OTHER):
-            result = margin("memo", "--month", month, "--out", str(directory), "--warehouse", str(scenario_warehouse))
-            assert result.code == 0, result.stderr
-
-    return shared_dir(tmp_path_factory, "memo_check_site", build)
 
 
 @pytest.fixture
