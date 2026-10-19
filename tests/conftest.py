@@ -123,16 +123,26 @@ def pytest_sessionfinish(session):
     _remove_process_default_root()
 
 
+def _default_xdist_workers() -> int:
+    """`PYTEST_XDIST_AUTO_NUM_WORKERS` when it is a whole number, else the CPU count; never above 12."""
+    wanted = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS", "")
+    if wanted.isdigit():
+        return min(12, int(wanted))
+    return min(12, os.cpu_count() or 1)
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_cmdline_main(config):
     """Run in parallel by default, whenever the xdist plugin is loaded (`-n 0` still runs serially,
-    `-p no:xdist` and `--collect-only` are untouched). A crashing worker is never respawned: a
+    `-p no:xdist` and `--collect-only` are untouched). The default worker count is the one `-n auto`
+    would use: `PYTEST_XDIST_AUTO_NUM_WORKERS` when set, else the CPU count, capped at 12; set it
+    to 1 where several suites share one machine. A crashing worker is never respawned: a
     respawn loop outlives its controller and grows without bound, so the run fails on the first
     crash instead. Set here rather than in `addopts`, which would break `-p no:xdist`."""
     opts = config.option
     if hasattr(opts, "numprocesses") and opts.numprocesses is None and not opts.collectonly \
             and "PYTEST_XDIST_WORKER" not in os.environ:
-        opts.numprocesses = min(12, os.cpu_count() or 1)
+        opts.numprocesses = _default_xdist_workers()
         opts.dist = "load"
         opts.maxworkerrestart = 0
 
