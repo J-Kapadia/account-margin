@@ -4,11 +4,13 @@ over the closed `mini` books with the scenario run and the 2026-03 memo built.""
 from __future__ import annotations
 
 import fcntl
+import http.client
 import json
 import os
 import re
 import shutil
 import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -226,8 +228,8 @@ def test_a_post_while_the_action_lock_is_held_is_409(served):
         serve.ACTION_LOCK.release()
 
 
-def test_the_action_routes_answer_501_until_they_are_implemented(served):
-    for path in ("/close", "/reset", "/inject/sign_flip"):
+def test_the_other_action_routes_answer_501_until_they_are_implemented(served):
+    for path in ("/reset", "/inject/sign_flip"):
         res = served.post(path)
         assert res.status == 501
         assert res.json == {"status": "fail", "message": "not implemented"}
@@ -250,6 +252,78 @@ def test_other_methods_are_405(served):
         res = served.request("/", method)
         assert res.status == 405
         assert res.headers["Allow"] == "GET, HEAD, POST"
+
+
+# ------------------------------------------------------------------ the close stream
+
+
+def post_stream(server: Served, path: str = "/close", first_line_within: float = 10.0) -> tuple[http.client.HTTPResponse, list[str]]:
+    """POST and read the response one line at a time; the first line must arrive within the deadline,
+    far shorter than a `mini` close."""
+    conn = http.client.HTTPConnection("127.0.0.1", server.server.server_address[1], timeout=300)
+    start = time.monotonic()
+    conn.request("POST", path, body=b"")
+    res = conn.getresponse()
+    first = res.readline().decode().rstrip("\n")
+    assert time.monotonic() - start < first_line_within, first
+    lines = [first, *(raw.decode().rstrip("\n") for raw in res)]
+    conn.close()
+    return res, lines
+
+
+def test_a_close_streams_closes_the_next_month_and_builds_its_memo(private_server):
+    server = private_server
+    before = cli_months(server.root)
+    assert [m["month"] for m in before] == ["2026-02", MONTH]
+    res, lines = post_stream(server)
+    assert res.status == 200, lines
+    assert res.getheader("Transfer-Encoding") == "chunked"
+    assert res.getheader("Content-Type") == "text/plain; charset=utf-8"
+    assert lines[0] == "closing 2026-04 (a mini close takes about forty seconds)"
+    assert "running the scenario for 2026-04" in lines
+    assert lines.index("running the scenario for 2026-04") < lines.index("building the memo for 2026-04")
+    assert any(line.startswith("PASS ") for line in lines)  # the close's control lines stream through
+    server.assert_lock_free()
+
+    after = {m["month"]: m for m in cli_months(server.root)}
+    assert after["2026-04"]["status"] == "closed"
+    assert lines[-1] == f"done 2026-04 closed {after['2026-04']['result_hash']}"
+
+    memo = server.get("/site/2026-04/index.html")
+    assert memo.status == 200
+    href = re.search(r'<a href="([^"]+)"><span data-num-id=', memo.text).group(1)
+    assert server.get(urljoin("/site/2026-04/index.html", href)).status == 200
+
+    page = server.get("/").text
+    assert re.search(r'<td data-field="month">2026-04</td><td data-field="status">closed</td>', page)
+    assert 'href="/site/2026-04/index.html"' in page
+    assert "disabled" in tag(page, "button", "close-button")
+    assert "every month of the books is closed" in page
+
+    again = server.post("/close")
+    assert again.status == 409
+    assert again.json == {"status": "busy", "message": "every month of the books is closed"}
+    assert not serve.ACTION_LOCK.locked()
+
+    state = margin("status", "--fixture", "mini", "--warehouse", str(server.root / "serve.duckdb"), "--json").json
+    for path in ("/", "/health", "/site/2026-04/index.html"):
+        server.get(path)
+    assert margin("status", "--fixture", "mini", "--warehouse", str(server.root / "serve.duckdb"), "--json").json == state
+
+
+def test_a_close_that_fails_reports_the_exit_and_leaves_the_month_open(private_server, tmp_path, monkeypatch):
+    unsigned = tmp_path / "no-signoff"
+    unsigned.mkdir()
+    monkeypatch.setattr(serve, "SIGNOFF", str(unsigned))
+    before = cli_months(private_server.root)
+    res, lines = post_stream(private_server)
+    assert res.status == 200, lines
+    assert lines[0].startswith("closing 2026-04 ")
+    assert re.fullmatch(r"failed exit 4: .+", lines[-1])
+    assert not any(line.startswith("running the scenario") for line in lines)
+    assert cli_months(private_server.root) == before
+    assert not serve.ACTION_LOCK.locked()
+    private_server.assert_lock_free()
 
 
 # ------------------------------------------------------------------ a warehouse that cannot be read

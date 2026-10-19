@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 from http import HTTPStatus
@@ -42,6 +43,8 @@ WAREHOUSE = "serve.duckdb"
 UNBUILT_MESSAGE = "serve root not built: run the image build steps"
 UNREADABLE = "warehouse not readable"
 BUSY = "a close is running"
+CONFIG = "tests/fixtures/config"
+SIGNOFF = "tests/fixtures/signoff"
 ALL_CLOSED = "every month of the books is closed"
 
 # One action at a time. A POST route takes it without blocking, sets `running` to the kind of
@@ -49,6 +52,9 @@ ALL_CLOSED = "every month of the books is closed"
 ACTION_LOCK = threading.Lock()
 RUNNING_LABELS = {"close": "a close", "inject": "an injection", "reset": "a reset"}
 running: str | None = None
+
+# The months last read from each served root, shown while a close holds the warehouse.
+LAST_MONTHS: dict[str, list[dict]] = {}
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -98,9 +104,11 @@ def read_months(root: Path) -> list[dict]:
         with warehouse_lock(Path(str(warehouse) + ".lock"), exclusive=False):
             con = connect(warehouse, read_only=True)
             try:
-                return status_mod.status(con)
+                months = status_mod.status(con)
             finally:
                 con.close()
+        LAST_MONTHS[str(root)] = months
+        return months
     except MarginError as err:
         if err.message == LOCK_MESSAGE:
             raise Unreadable(BUSY) from None
@@ -128,7 +136,7 @@ def render_index(root: Path) -> str:
     try:
         months, notice = read_months(root), None
     except Unreadable as err:
-        months, notice = [], str(err)
+        months, notice = (LAST_MONTHS.get(str(root), []) if str(err) == BUSY else []), str(err)
     upcoming = None if notice else next_month(months)
     return _env.get_template("serve.html.j2").render(
         months=months, notice=notice, next_month=upcoming, all_closed=not notice and upcoming is None,
@@ -159,6 +167,81 @@ def site_file(root: Path, rel: str) -> Path | None:
     if target.is_dir():
         target = target / "index.html"
     return target if target.is_file() else None
+
+
+class _ChunkSink:
+    """Writes lines as chunked-encoding frames, flushing each. A client that went away is not an
+    error: the close it started still runs to its end, so the books are never left half-written."""
+
+    def __init__(self, wfile) -> None:
+        self.wfile = wfile
+        self.open = True
+
+    def _write(self, data: bytes) -> None:
+        if not self.open:
+            return
+        try:
+            self.wfile.write(data)
+            self.wfile.flush()
+        except OSError:
+            self.open = False
+
+    def line(self, text: str) -> None:
+        data = (text + "\n").encode()
+        self._write(f"{len(data):x}\r\n".encode() + data + b"\r\n")
+
+    def end(self) -> None:
+        self._write(b"0\r\n\r\n")
+
+
+class _StepFailed(Exception):
+    def __init__(self, code: int, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def run_step(args: list[str], emit) -> dict:
+    """Run `python -m margin <args>` with every stderr line passed to `emit` as it arrives; the
+    JSON envelope on stdout is returned. A non-zero exit raises `_StepFailed`."""
+    env = {**os.environ, "MARGIN_SIGNOFF_DIR": SIGNOFF}
+    proc = subprocess.Popen([sys.executable, "-m", "margin", *args], cwd=ROOT, env=env,
+                            stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    out: list[str] = []
+    drain = threading.Thread(target=lambda: out.append(proc.stdout.read()), daemon=True)
+    drain.start()
+    last = ""
+    for raw in proc.stderr:
+        line = raw.rstrip("\n")
+        if line:
+            last = line
+            emit(line)
+    code = proc.wait()
+    drain.join()
+    try:
+        envelope = json.loads(out[0]) if out else {}
+    except ValueError:
+        envelope = {}
+    if not isinstance(envelope, dict):
+        envelope = {}
+    if code:
+        raise _StepFailed(code, envelope.get("message") or last or "no message")
+    return envelope
+
+
+def run_close(root: Path, month: str, emit) -> None:
+    """Close, then run the scenario and build the memo for `month` in the served root."""
+    warehouse = str(root / WAREHOUSE)
+    common = ["--fixture", "mini", "--month", month, "--warehouse", warehouse]
+    try:
+        closed = run_step(["close", *common, "--config", CONFIG, "--json"], emit)
+        emit(f"running the scenario for {month}")
+        run_step(["scenario", *common, "--config", CONFIG, "--json"], emit)
+        emit(f"building the memo for {month}")
+        run_step(["memo", *common, "--out", str(root / "site"), "--json"], emit)
+    except _StepFailed as err:
+        emit(f"failed exit {err.code}: {err}")
+        return
+    emit(f"done {month} closed {closed.get('result_hash', '')}")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -243,10 +326,45 @@ class Handler(BaseHTTPRequestHandler):
             return
         running = action[0]
         try:
-            self._json(HTTPStatus.NOT_IMPLEMENTED, {"status": "fail", "message": "not implemented"})
+            if action[0] == "close":
+                self._close()
+            else:
+                self._json(HTTPStatus.NOT_IMPLEMENTED, {"status": "fail", "message": "not implemented"})
         finally:
             running = None
             ACTION_LOCK.release()
+
+    # ------------------------------------------------------------------ the close stream
+
+    def _close(self) -> None:
+        """Close the next month as `margin` subprocesses, streaming their lines as chunks. Holds no
+        connection of its own: each step takes the warehouse lock exactly as a CLI run would."""
+        root = self.server.root
+        try:
+            month = next_month(read_months(root))
+        except Unreadable as err:
+            busy = str(err) == BUSY
+            self._json(HTTPStatus.CONFLICT if busy else HTTPStatus.SERVICE_UNAVAILABLE,
+                       {"status": "busy" if busy else "fail", "message": str(err)})
+            return
+        if month is None:
+            self._json(HTTPStatus.CONFLICT, {"status": "busy", "message": ALL_CLOSED})
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        sink = _ChunkSink(self.wfile)
+        sink.line(f"closing {month} (a mini close takes about forty seconds)")
+        try:
+            run_close(root.resolve(), month, sink.line)
+        except Exception as exc:  # noqa: BLE001 - the stream is open: report it there, never a traceback
+            sink.line(f"failed exit 70: internal error: {type(exc).__name__}: {exc}")
+        finally:
+            sink.end()
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _not_allowed  # noqa: N815
 
