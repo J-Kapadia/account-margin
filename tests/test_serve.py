@@ -4,11 +4,14 @@ over the closed `mini` books with the scenario run and the 2026-03 memo built.""
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import http.client
 import json
 import os
 import re
 import shutil
+import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -20,7 +23,7 @@ from urllib.parse import urljoin
 import pytest
 
 from conftest import MINI_CONFIG, margin
-from margin import inject, serve
+from margin import gallery, inject, serve
 from margin.errors import MarginError
 from margin.lock import warehouse_lock
 
@@ -228,12 +231,16 @@ def test_a_post_while_the_action_lock_is_held_is_409(served):
         serve.ACTION_LOCK.release()
 
 
-def test_the_other_action_routes_answer_501_until_they_are_implemented(served):
-    for path in ("/reset", "/inject/sign_flip"):
-        res = served.post(path)
-        assert res.status == 501
-        assert res.json == {"status": "fail", "message": "not implemented"}
-    assert not serve.ACTION_LOCK.locked()
+def test_the_409_names_the_action_that_holds_the_lock(served, monkeypatch):
+    assert serve.ACTION_LOCK.acquire(blocking=False)
+    monkeypatch.setattr(serve, "running", "inject")
+    try:
+        for path in ("/close", "/reset", "/inject/sign_flip"):
+            res = served.post(path)
+            assert res.status == 409
+            assert res.json == {"status": "busy", "message": "an injection is running"}
+    finally:
+        serve.ACTION_LOCK.release()
 
 
 def test_an_error_name_outside_the_list_is_404(served):
@@ -310,6 +317,18 @@ def test_a_close_streams_closes_the_next_month_and_builds_its_memo(private_serve
         server.get(path)
     assert margin("status", "--fixture", "mini", "--warehouse", str(server.root / "serve.duckdb"), "--json").json == state
 
+    reset, reset_lines = post_stream(server, "/reset")  # the pristine books come back: March is the last month
+    assert reset.status == 200
+    assert reset_lines == [f"reset done: 2026-02, {MONTH}"]
+    restored = cli_months(server.root)
+    assert [m["month"] for m in restored] == ["2026-02", MONTH]
+    assert restored == cli_months(server.root / "pristine")
+    assert restored[-1]["result_hash"] == before[-1]["result_hash"]
+    assert server.get("/site/2026-04/index.html").status == 404
+    assert server.get(f"/site/{MONTH}/index.html").status == 200
+    assert "disabled" not in tag(server.get("/").text, "button", "close-button")
+    assert not serve.ACTION_LOCK.locked()
+
 
 def test_a_close_that_fails_reports_the_exit_and_leaves_the_month_open(private_server, tmp_path, monkeypatch):
     unsigned = tmp_path / "no-signoff"
@@ -324,6 +343,101 @@ def test_a_close_that_fails_reports_the_exit_and_leaves_the_month_open(private_s
     assert cli_months(private_server.root) == before
     assert not serve.ACTION_LOCK.locked()
     private_server.assert_lock_free()
+
+
+# ------------------------------------------------------------------ a planted error
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.mark.slow
+def test_a_planted_sign_flip_streams_and_ends_with_the_control_that_caught_it(private_server, monkeypatch):
+    server = private_server
+    made: list[str] = []
+    real_mkdtemp = tempfile.mkdtemp
+
+    def recording_mkdtemp(*args, **kwargs):
+        made.append(real_mkdtemp(*args, **kwargs))
+        return made[-1]
+
+    monkeypatch.setattr(serve.tempfile, "mkdtemp", recording_mkdtemp)
+    warehouse = server.root / "serve.duckdb"
+    served_before = sha256(warehouse)
+    months_before = cli_months(server.root)
+
+    res, lines = post_stream(server, "/inject/sign_flip")
+    assert res.status == 200, lines
+    assert res.getheader("Transfer-Encoding") == "chunked"
+    assert res.getheader("Content-Type") == "text/plain; charset=utf-8"
+    assert lines[0] == "planting sign_flip in a copy of the books"
+    module = gallery.case("sign_flip")
+    capture = module["capture"]["close"]["failed_controls"]
+    assert capture[0]["id"] == module["control"] == "CTL-SIGN"
+    assert any(line.startswith("FAIL ") and "CTL-SIGN" in line for line in lines), lines
+    tail = lines[-(2 + len(module["remediation"])):]
+    assert tail == ["caught CTL-SIGN", module["caught"], *[f"remediation: {step}" for step in module["remediation"]]]
+
+    assert sha256(warehouse) == served_before  # the served warehouse is never touched
+    assert cli_months(server.root) == months_before
+    assert len(made) == 1 and not Path(made[0]).exists()
+    assert not serve.ACTION_LOCK.locked()
+    server.assert_lock_free()
+
+
+def test_an_unknown_planted_error_is_404_and_starts_nothing(served, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise AssertionError("a subprocess was started")
+
+    monkeypatch.setattr(subprocess, "Popen", refuse)
+    res = served.post("/inject/no_such_error")
+    assert res.status == 404
+    assert res.json == {"status": "fail", "message": "not found"}
+    assert not serve.ACTION_LOCK.locked()
+
+
+def test_a_planted_error_that_cannot_be_injected_reports_the_exit(private_server, monkeypatch):
+    real_run_step = serve.run_step
+
+    def failing_inject(args, emit):
+        if args[0] == "inject":
+            raise serve._StepFailed(2, "no such books")
+        return real_run_step(args, emit)
+
+    monkeypatch.setattr(serve, "run_step", failing_inject)
+    res, lines = post_stream(private_server, "/inject/sign_flip")
+    assert res.status == 200
+    assert lines == ["planting sign_flip in a copy of the books", "failed exit 2: no such books"]
+    assert not serve.ACTION_LOCK.locked()
+
+
+def test_a_planted_error_that_the_close_passes_says_so(private_server, monkeypatch):
+    def passing(args, emit):
+        return {}
+
+    monkeypatch.setattr(serve, "run_step", passing)
+    res, lines = post_stream(private_server, "/inject/sign_flip")
+    assert lines == ["planting sign_flip in a copy of the books", "caught nothing: the close passed"]
+
+
+def test_a_reset_puts_the_pristine_warehouse_and_site_back(private_server):
+    server = private_server
+    pristine = sha256(server.root / "pristine" / "serve.duckdb")
+    (server.root / "serve.duckdb").write_bytes(b"not a warehouse")
+    (server.root / "site" / "2026-04").mkdir()
+    (server.root / "site" / "2026-04" / "index.html").write_text("stale")
+    (server.root / "site" / MONTH / "index.html").write_text("tampered")
+    res, lines = post_stream(server, "/reset")
+    assert res.status == 200, lines
+    assert lines == [f"reset done: 2026-02, {MONTH}"]
+    assert sha256(server.root / "serve.duckdb") == pristine
+    assert server.get("/site/2026-04/index.html").status == 404
+    assert server.get(f"/site/{MONTH}/index.html").text != "tampered"
+    assert not [p.name for p in server.root.iterdir() if p.name.startswith(("site.", "serve.duckdb."))
+                and p.name != "serve.duckdb.lock"]
+    assert not serve.ACTION_LOCK.locked()
+    server.assert_lock_free()
 
 
 # ------------------------------------------------------------------ a warehouse that cannot be read

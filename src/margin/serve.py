@@ -15,8 +15,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,9 +30,10 @@ import duckdb
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
 from . import books as books_mod
+from . import gallery as gallery_mod
 from . import inject as inject_mod
 from . import status as status_mod
-from .errors import EXIT_USAGE, MarginError
+from .errors import EXIT_CONTROL, EXIT_USAGE, MarginError
 from .lock import LOCK_MESSAGE, warehouse_lock
 from .paths import FIXTURE_BOOKS, ROOT
 from .warehouse import connect
@@ -195,9 +198,10 @@ class _ChunkSink:
 
 
 class _StepFailed(Exception):
-    def __init__(self, code: int, message: str) -> None:
+    def __init__(self, code: int, message: str, envelope: dict | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.envelope = envelope or {}
 
 
 def run_step(args: list[str], emit) -> dict:
@@ -224,7 +228,7 @@ def run_step(args: list[str], emit) -> dict:
     if not isinstance(envelope, dict):
         envelope = {}
     if code:
-        raise _StepFailed(code, envelope.get("message") or last or "no message")
+        raise _StepFailed(code, envelope.get("message") or last or "no message", envelope)
     return envelope
 
 
@@ -242,6 +246,61 @@ def run_close(root: Path, month: str, emit) -> None:
         emit(f"failed exit {err.code}: {err}")
         return
     emit(f"done {month} closed {closed.get('result_hash', '')}")
+
+
+def run_inject(error: str, emit) -> None:
+    """Plant `error` in a copy of the `mini` books, close the copy in a warehouse of its own and
+    stream what caught it. The served warehouse is never named; the copy is removed on the way out."""
+    emit(f"planting {error} in a copy of the books")
+    work = Path(tempfile.mkdtemp())
+    try:
+        try:
+            run_step(["inject", "--fixture", "mini", "--error", error, "--out", str(work / "books"), "--json"], emit)
+        except _StepFailed as err:
+            emit(f"failed exit {err.code}: {err}")
+            return
+        try:
+            run_step(["close", "--fixture", "mini", "--month", gallery_mod.MONTH, "--books", str(work / "books"),
+                      "--warehouse", str(work / "w.duckdb"), "--config", CONFIG, "--json"], emit)
+        except _StepFailed as err:
+            if err.code != EXIT_CONTROL:
+                emit(f"failed exit {err.code}: {err}")
+                return
+            failed = [c["id"] if isinstance(c, dict) else c for c in err.envelope.get("failed_controls") or []]
+            emit(f"caught {failed[0]}" if failed else f"failed exit {err.code}: {err}")
+            case = gallery_mod.case(error)
+            if failed and case:
+                emit(case["caught"])
+                for line in case["remediation"]:
+                    emit(f"remediation: {line}")
+            return
+        emit("caught nothing: the close passed")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def run_reset(root: Path, emit) -> None:
+    """Put the pristine warehouse and site back, each swapped in whole so a reader sees the old or the new."""
+    pristine = root / "pristine"
+    warehouse = root / WAREHOUSE
+    fd, scratch = tempfile.mkstemp(dir=root, prefix=WAREHOUSE + ".")
+    os.close(fd)
+    try:
+        shutil.copyfile(pristine / WAREHOUSE, scratch)
+        os.replace(scratch, warehouse)
+    finally:
+        Path(scratch).unlink(missing_ok=True)
+    site = root / "site"
+    fresh, stale = root / "site.new", root / "site.old"
+    for leftover in (fresh, stale):
+        shutil.rmtree(leftover, ignore_errors=True)
+    shutil.copytree(pristine / "site", fresh)
+    if site.exists():
+        os.replace(site, stale)
+    os.replace(fresh, site)
+    shutil.rmtree(stale, ignore_errors=True)
+    months = read_months(root)
+    emit("reset done: " + (", ".join(m["month"] for m in months) or "no months"))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -328,8 +387,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if action[0] == "close":
                 self._close()
+            elif action[0] == "inject":
+                self._stream(lambda emit: run_inject(action[1], emit))
             else:
-                self._json(HTTPStatus.NOT_IMPLEMENTED, {"status": "fail", "message": "not implemented"})
+                self._stream(lambda emit: run_reset(self.server.root.resolve(), emit))
         finally:
             running = None
             ACTION_LOCK.release()
@@ -350,6 +411,11 @@ class Handler(BaseHTTPRequestHandler):
         if month is None:
             self._json(HTTPStatus.CONFLICT, {"status": "busy", "message": ALL_CLOSED})
             return
+        self._stream(lambda emit: (emit(f"closing {month} (a mini close takes about forty seconds)"),
+                                   run_close(root.resolve(), month, emit)))
+
+    def _stream(self, work) -> None:
+        """Answer 200 chunked text and pass `work` the function that writes one line of it."""
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Transfer-Encoding", "chunked")
@@ -358,9 +424,8 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.close_connection = True
         sink = _ChunkSink(self.wfile)
-        sink.line(f"closing {month} (a mini close takes about forty seconds)")
         try:
-            run_close(root.resolve(), month, sink.line)
+            work(sink.line)
         except Exception as exc:  # noqa: BLE001 - the stream is open: report it there, never a traceback
             sink.line(f"failed exit 70: internal error: {type(exc).__name__}: {exc}")
         finally:

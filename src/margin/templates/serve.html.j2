@@ -55,6 +55,12 @@
 </section>
 
 <p id="memo">{% if memo_month %}<a id="memo-link" href="/site/{{ memo_month }}/index.html">Memo for {{ memo_month }}</a>{% endif %}</p>
+<section id="result-panel" hidden>
+<h2>Caught</h2>
+<p id="caught" data-field="caught"></p>
+<p id="caught-detail" data-field="caught-detail"></p>
+<ul id="remediation"></ul>
+</section>
 <section id="log-panel">
 <h2>Log</h2>
 <pre id="log" aria-live="polite"></pre>
@@ -64,6 +70,7 @@
 (function () {
   var log = document.getElementById("log");
   var busy = false;
+  var seen = [];
 
   // While a stream is open every button is disabled; the ones the page had disabled stay so afterwards.
   function lock(on) {
@@ -74,8 +81,40 @@
   }
 
   function append(line) {
+    seen.push(line);
     log.textContent += line + "\n";
     log.scrollTop = log.scrollHeight;
+  }
+
+  // A planted error ends its stream with the control that caught it, what that control saw and the
+  // remediation steps; the result panel shows those lines and the log keeps the whole stream.
+  var result = { panel: document.getElementById("result-panel"), caught: document.getElementById("caught"),
+                 detail: document.getElementById("caught-detail"), steps: document.getElementById("remediation") };
+
+  function clearResult() {
+    result.panel.hidden = true;
+    result.caught.textContent = "";
+    result.detail.textContent = "";
+    result.steps.textContent = "";
+  }
+
+  function showResult(lines) {
+    var at = -1;
+    lines.forEach(function (line, i) { if (/^caught /.test(line)) { at = i; } });
+    if (at < 0) { return; }
+    result.caught.textContent = lines[at];
+    var detail = [];
+    lines.slice(at + 1).forEach(function (line) {
+      if (line.indexOf("remediation: ") === 0) {
+        var item = document.createElement("li");
+        item.textContent = line.slice("remediation: ".length);
+        result.steps.appendChild(item);
+      } else {
+        detail.push(line);
+      }
+    });
+    result.detail.textContent = detail.join(" ");
+    result.panel.hidden = false;
   }
 
   // The months table and the close button follow the warehouse: take them from a fresh copy of the page.
@@ -95,6 +134,8 @@
     busy = true;
     lock(true);
     log.textContent = "";
+    clearResult();
+    seen = [];
     var pending = "";
     fetch(path, { method: "POST" }).then(function (res) {
       if (!res.ok) {
@@ -122,6 +163,7 @@
     }).catch(function (err) {
       append("request failed: " + err);
     }).then(function () {
+      if (path.indexOf("/inject/") === 0) { showResult(seen); }
       busy = false;
       lock(false);
       return refresh();
