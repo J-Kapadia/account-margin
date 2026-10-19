@@ -8,7 +8,7 @@ Everything is synthetic. The books belong to "Acme AI", a generated usage-priced
 
 ## Status
 
-Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Roll-forward and month locking (`rollforward`, `close --recompute` and `status`) are built too. The token-price scenario is built too (`scenario --check` and `scenario --month`, described below). Still to come: the full memo site, `agreement` and `doctor`.
+Work in progress. Built and tested now: the seeded generator and answer key; the close (dbt models, allocation of shared cloud cost under three rules, firm and soft margin flags with reason codes); the tie-out, allocation, price-pin and sign-off controls; `close --check` against the answer key; a provenance record for every number with `explain`; and the injected-error tests. Roll-forward and month locking (`rollforward`, `close --recompute` and `status`) are built too. The token-price scenario is built too (`scenario --check` and `scenario --month`, described below), and so are the memo site with its explain pages and agent-readable files (`memo`) and the `agreement` check, both described below. Still to come: `doctor`.
 
 The production allocation and policy configs are not signed yet, so run it today on the committed `mini` fixture (12 accounts, February to April 2026), which carries its own signed configs:
 
@@ -24,10 +24,12 @@ uv run margin explain cp/2026-03/acct_0001/contribution_profit --fixture mini
 uv run margin scenario --check
 uv run margin scenario --month 2026-03 --fixture mini --config tests/fixtures/config --warehouse warehouse/roll.duckdb
 uv run margin explain scenario/2026-03/summary/computed_change --fixture mini --warehouse warehouse/roll.duckdb
+uv run margin memo --month 2026-03 --fixture mini --warehouse warehouse/roll.duckdb --out site --check --crawl
+uv run margin agreement --month 2026-03 --fixture mini --warehouse warehouse/roll.duckdb --site site --check --write
 uv run pytest -q tests/test_injected_errors.py
 ```
 
-The first close runs every earlier month first, passes every control and matches the answer key; the roll-forward sequence on its own warehouse closes March, locks February and March while loading April, closes and checks April, and `status` lists February and March as `locked` and April as `closed` with their result hashes (`close --recompute` re-closes a `closed` month whose model code was fixed, storing the new hash and the old one as `restated_from`; on a `locked` month it exits 4); `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it.
+The first close runs every earlier month first, passes every control and matches the answer key; the roll-forward sequence on its own warehouse closes March, locks February and March while loading April, closes and checks April, and `status` lists February and March as `locked` and April as `closed` with their result hashes (`close --recompute` re-closes a `closed` month whose model code was fixed, storing the new hash and the old one as `restated_from`; on a `locked` month it exits 4); `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it. The memo and agreement commands run after the scenario, as the next two sections explain.
 
 ## The token-price scenario
 
@@ -37,6 +39,19 @@ The scenario asks what happens to the accounts below the margin floor if the cos
 - `margin scenario --check` proves the scenario against a small hand-worked reference (`tests/fixtures/scenario`): it generates the reference books into a temporary directory and warehouse, runs the scenario there and exits 3 on any difference from the worked series, computed change, recovery quarters and margin paths. It touches no warehouse of yours.
 - The disclaimer travels with the numbers: the series is a blend of model vendors' list prices with fixed weights (an unweighted mean over three tiers of the input and output price, three parts input to one part output), applied to synthetic accounts. It is not Acme's per-model price and not any customer's cost.
 - The series file is `data/reference/list_price_series.csv`: one row per tier and month, 2026-03 through 2026-09, each with the vendor's pricing page as captured by the Internet Archive and the day it was read; `data/reference/README.md` gives the method. Set `MARGIN_LIST_PRICE_SERIES` to read another file of the same shape.
+
+## The memo site
+
+`margin memo --month M` builds a static site for a `closed` or `locked` month into `--out` (default `site`). It needs the month's scenario run first (`scenario --month M`), because the memo carries the scenario's numbers: without it the command exits 4.
+
+- The memo is one page per month, `M/index.html`, written from deterministic templates over the provenance-tracked numbers. Every number on it is a link to its explain page (`explain/<number-id>.html`), which prints the same chain `margin explain` does, down to the hashed source rows.
+- `values.csv` per month (`M/values.csv`) is the cached value of every number the memo shows, and `llms.txt` at the site root is the agent-readable index: it lists the months with a memo, links each month's values file and names the model's SQL, so an agent can read the answer without parsing HTML.
+- `--check` proves the memo traceable after the build: `CHK-MEMO-NUM` (every number on the page resolves through `explain` to source rows whose digests re-derive) and `CHK-MEMO-QUOTE` (the memo quotes only strings registered in `data/reference/quotes.yaml`, which is empty today, so it quotes no outside source). `--crawl` adds `CHK-CRAWL`: it walks the internal links of the output directory offline and fails on a broken one.
+- The published site is built from the `mini` fixture and deployed to GitHub Pages by `.github/workflows/pages.yml`: <https://j-kapadia.github.io/account-margin/>.
+
+## The agreement check
+
+The same number can be read four ways: `margin explain`, the model's SQL over the warehouse, the memo page, and the cached `values.csv`. `margin agreement --month M --site site` asks every number of the month through each of them and reports the rate of agreement. With `--check` any disagreement fails `CHK-AGREEMENT` (exit 3); with `--write` it stores the result in `<site>/M/agreement.json`. It runs after `memo` has built the site, since it reads the memo and `llms.txt` from there.
 
 ## Build versus buy
 
@@ -56,9 +71,9 @@ The memo's build-versus-buy section sets what building this tool cost against th
 - Applies a published list-price trend to the synthetic accounts below the floor, in a token-price scenario that leaves the closed month untouched.
 - Rolls a month forward: `rollforward` locks every earlier closed month and loads the next month's books in one transaction, and `status` lists each month's state and result hash.
 
-Planned, not built yet:
+- Publishes a static memo for the month, with an explain page for every number, an agent-readable `llms.txt` and a cached `values.csv`, and checks that the CLI, SQL, memo and cached values give the same answer for every number (`agreement`).
 
-- A static memo with agent-readable data (`llms.txt`, the model's SQL and a cached values file per month), and an `agreement` check that the CLI, SQL, memo and cached values return the same answer for every number.
+Planned, not built yet: `margin doctor`.
 
 ## Requirements
 
@@ -66,7 +81,7 @@ Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
 ## Full run (planned for v0.1; does not run yet)
 
-This is the target sequence, not what works today. It needs the production sign-offs and the unbuilt commands in the table below. Today `margin gen --seed 20261013 --out data/books` runs and writes the full books, priced from `data/reference/model_prices.csv`. Use the `mini` fixture commands under Status.
+This is the target sequence, not what works today. It needs the production sign-offs, which are not committed yet. Today `margin gen --seed 20261013 --out data/books` runs and writes the full books, priced from `data/reference/model_prices.csv`. Use the `mini` fixture commands under Status.
 
 ```bash
 uv sync --frozen
@@ -75,11 +90,11 @@ uv run margin close --month 2026-03 --check
 uv run margin rollforward --month 2026-04 && uv run margin close --month 2026-04 --check
 uv run margin scenario --check
 uv run margin scenario --month 2026-03
-uv run margin memo --month 2026-03 --check
-uv run margin agreement --month 2026-03 --check
+uv run margin memo --month 2026-03 --check --crawl
+uv run margin agreement --month 2026-03 --check --write
 ```
 
-`close` reads only the books; `--check` also compares the result with the generator's hidden answer key. A non-zero exit says why: 2 usage (a bad argument, a month outside the books, an unknown ID), 3 a control failed, 4 a precondition is missing (for example no sign-off for the allocation rule in force), 5 the result differs from the answer key, 6 provenance is incomplete, 70 internal (another run holds the warehouse lock, or a bug). Every command accepts `--json`.
+`close` reads only the books; `--check` also compares the result with the generator's hidden answer key. A non-zero exit says why: 2 usage (a bad argument, a month outside the books, an unknown ID), 3 a control failed (including `CHK-MEMO-NUM`, `CHK-MEMO-QUOTE` and `CHK-CRAWL` from `memo --check`, and `CHK-AGREEMENT` from `agreement --check`), 4 a precondition is missing (for example no sign-off for the allocation rule in force, or a memo asked for a month whose scenario has not run), 5 the result differs from the answer key, 6 provenance is incomplete (including a digest that does not re-derive, or a value that differs from the cached one, found by `memo --check`), 70 internal (another run holds the warehouse lock, or a bug). Every command accepts `--json`.
 
 | Command | Purpose |
 |---|---|
@@ -89,8 +104,8 @@ uv run margin agreement --month 2026-03 --check
 | `margin explain` | Print the provenance chain of a number |
 | `margin inject` | Copy the books with one seeded error |
 | `margin scenario` | Token-price scenario for a closed month (`--month`), or its proof against a hand-worked reference (`--check`) |
-| `margin memo` | (planned) Build the memo and explain pages as a static site |
-| `margin agreement` | (planned) Ask every interface for every number and report any disagreement |
+| `margin memo` | Build the memo, its explain pages, `llms.txt` and `values.csv` as a static site for a month with a scenario run; `--check` proves it traceable and `--crawl` its links |
+| `margin agreement` | Ask every interface for every number of a month and report any disagreement; `--check` fails on one, `--write` stores the result |
 | `margin signoff` | Record the allocation rule's sign-off (human, interactive) |
 | `margin status` | List the months with their state and result hash |
 | `margin doctor` | (planned) Health |

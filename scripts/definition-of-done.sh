@@ -77,6 +77,15 @@ uv run margin explain cfg/policy --fixture mini --warehouse "$work/mini.duckdb"
 MARGIN_SIGNOFF_DIR=tests/fixtures/signoff uv run margin scenario --check
 uv run margin scenario --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --json
 uv run margin explain scenario/2026-03/summary/computed_change --fixture mini --warehouse "$work/mini.duckdb"
+# The memo for March, traced and crawled, then the agreement check over the built site; the scenario above
+# comes first because the memo carries its numbers. April has no scenario run, so its memo exits 4.
+uv run margin memo --month 2026-03 --fixture mini --warehouse "$work/mini.duckdb" --out "$work/site" --check --crawl --json
+uv run margin agreement --month 2026-03 --fixture mini --warehouse "$work/mini.duckdb" --site "$work/site" --check --write --json
+test -f "$work/site/2026-03/agreement.json"
+grep -q 'values 2026-03' "$work/site/llms.txt"
+rc=0
+uv run margin memo --month 2026-04 --fixture mini --warehouse "$work/mini.duckdb" --out "$work/site-april" || rc=$?
+if [ "$rc" -ne 4 ]; then echo "definition-of-done: a memo for a month without a scenario exited $rc, not 4" >&2; exit 1; fi
 rc=0
 MARGIN_SIGNOFF_DIR="$work" uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" \
   --warehouse "$work/unsigned.duckdb" || rc=$?
