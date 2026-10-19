@@ -37,13 +37,26 @@
     "checks": {
       "type": "array",
       "items": {
-        "type": "object",
-        "required": ["id", "status", "detail"],
-        "properties": {
-          "id": {"type": "string", "pattern": "^[a-z]+$"},
-          "status": {"enum": ["ok", "warn", "fail"]},
-          "detail": {"type": "string"}
-        }
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["id", "status", "detail"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^[a-z]+$"},
+              "status": {"enum": ["ok", "warn", "fail"]},
+              "detail": {"type": "string"}
+            }
+          },
+          {
+            "type": "object",
+            "required": ["id", "status", "violating_rows"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^(CTL|CHK)-[A-Z0-9-]+$"},
+              "status": {"enum": ["pass", "fail"]},
+              "violating_rows": {"type": "integer", "minimum": 0}
+            }
+          }
+        ]
       }
     },
     "result_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
