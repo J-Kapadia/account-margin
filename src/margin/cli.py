@@ -1,4 +1,4 @@
-"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement.
+"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement, doctor.
 
 Every command takes the path flags and `--json`; an error becomes a failure
 envelope and the exit code of the error contract (see errors.py).
@@ -15,6 +15,7 @@ import click
 from . import agreement as agreement_mod
 from . import check as check_mod
 from . import close as close_mod
+from . import doctor as doctor_mod
 from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
 from . import inject as inject_mod
 from . import memo_check as memo_check_mod
@@ -24,7 +25,7 @@ from . import scenario_run as scenario_mod
 from . import signoff as signoff_mod
 from . import status as status_mod
 from .errors import (
-    EXIT_CONTROL, EXIT_INTERNAL, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
+    EXIT_CONTROL, EXIT_INTERNAL, EXIT_OK, EXIT_PRECONDITION, EXIT_USAGE, MarginError,
 )
 from .lock import warehouse_lock
 from .paths import Paths, parse_month, resolve
@@ -67,10 +68,16 @@ def common_options(*used: str):
 
 
 def _guard(as_json: bool, action) -> None:
-    """Run `action() -> (envelope fields, human lines)`; map errors to exit codes."""
+    """Run `action() -> (envelope fields, human lines)`; map errors to exit codes.
+
+    A command whose result is not an error but still has a non-zero exit (doctor's warnings and
+    failures) puts it in the fields as `exit`: the ok envelope carries it and the process exits with it."""
     try:
         fields, lines = action()
+        fields = dict(fields)
+        code = fields.pop("exit", EXIT_OK)
         env = envelope.ok(**fields)
+        env["exit"] = code
     except MarginError as err:
         envelope.emit(envelope.failure(err), as_json=as_json)
         sys.exit(err.exit_code)
@@ -81,6 +88,8 @@ def _guard(as_json: bool, action) -> None:
         envelope.emit(envelope.failure(err), as_json=as_json)
         sys.exit(err.exit_code)
     envelope.emit(env, as_json=as_json, extra_lines=lines)
+    if code:
+        sys.exit(code)
 
 
 def _month_option(value: str) -> str:
@@ -326,6 +335,14 @@ def scenario(paths: Paths, month: str | None, check: bool, reference: Path):
     return result, [
         f"scenario for {month}: {result['accounts']} accounts, {result['records']} records written"
     ]
+
+
+@main.command()
+@common_options("books", "truth", "warehouse", "config")
+def doctor(paths: Paths):
+    """Report the health of the install and of the paths: exit 0 healthy, 1 warnings, 2 failures."""
+    checks, code = doctor_mod.run(paths)
+    return {"exit": code, "checks": checks}, doctor_mod.render(checks)
 
 
 @main.command()

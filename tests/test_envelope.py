@@ -91,11 +91,15 @@ def test_usage_error_without_json_prints_no_envelope():
 def test_schema_rejects_malformed_envelopes():
     good = {"schema_version": 1, "status": "ok", "exit": 0}
     VALIDATOR.validate(good)
+    for code in (1, 2):  # a report that found something is still an ok envelope
+        VALIDATOR.validate({**good, "exit": code})
     bad = [
         {**good, "schema_version": 2},
-        {**good, "exit": 3},                               # ok must exit 0
+        {**good, "exit": 3},                               # ok exits 0, or 1 or 2 for a report with findings
         {"schema_version": 1, "status": "fail", "exit": 3, "message": "x"},  # exit 3 needs failed_controls
         {"schema_version": 1, "status": "fail", "exit": 2},                  # a failure needs a message
+        {**good, "exit": 1, "message": "x"},               # an ok envelope carries no message
+        {**good, "checks": [{"id": "lock", "status": "maybe", "detail": "x"}]},
         {**good, "month": "2026-13"},
         {**good, "controls": [{"id": "tie", "status": "pass", "violating_rows": 0}]},
         {**good, "controls": [{"id": "CTL-X", "status": "maybe", "violating_rows": 0}]},

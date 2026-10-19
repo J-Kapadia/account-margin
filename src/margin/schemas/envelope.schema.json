@@ -34,6 +34,18 @@
         }
       }
     },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "detail"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z]+$"},
+          "status": {"enum": ["ok", "warn", "fail"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
     "result_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "message": {"type": "string"}
   },
@@ -41,7 +53,7 @@
     {
       "if": {"properties": {"status": {"const": "ok"}}},
       "then": {
-        "properties": {"exit": {"const": 0}},
+        "properties": {"exit": {"enum": [0, 1, 2]}},
         "not": {"anyOf": [{"required": ["failed_controls"]}, {"required": ["message"]}]}
       },
       "else": {
