@@ -306,7 +306,7 @@ def test_gl_totals_equal_the_component_sums_for_all_12_months(full):
         assert sum(c.inference for c in comps) == gl[(month, "5100")] == provider[month]
         assert sum(c.direct for c in comps) + res.pool_cents == gl[(month, "5200")]
         assert sum(c.support for c in comps) == gl[(month, "5300")] == tickets[month]
-        for rule in gen_config.KNOWN_RULES:
+        for rule in gen_config.load_config(CONFIG).allocation.rules:
             assert sum(c.shared[rule] for c in comps) == res.pool_cents
         for c in comps:
             for rule, profit in c.profit.items():

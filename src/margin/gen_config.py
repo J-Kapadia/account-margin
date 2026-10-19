@@ -20,7 +20,22 @@ from .errors import EXIT_PRECONDITION, EXIT_USAGE, MarginError
 
 POLICY_FILE = "policy.yaml"
 ALLOCATION_FILE = "allocation.yaml"
-KNOWN_RULES = ("by_tokens", "by_revenue", "equal_usage")
+KNOWN_DRIVERS = ("tokens", "revenue", "usage_accounts", "tickets")
+KNOWN_SHARED_COSTS = ("cloud_untagged", "cloud_unused_commitment", "support_shared", "platform_fees")
+KNOWN_RULES = ("by_tokens", "by_revenue", "equal_usage", "by_driver")
+# What each preset maps when a config does not spell it out: the first three put every shared
+# cost under one driver, `by_driver` sends each cost to the driver that describes it.
+BUILTIN_PRESETS: dict[str, dict[str, str]] = {
+    "by_tokens": {cost: "tokens" for cost in KNOWN_SHARED_COSTS},
+    "by_revenue": {cost: "revenue" for cost in KNOWN_SHARED_COSTS},
+    "equal_usage": {cost: "usage_accounts" for cost in KNOWN_SHARED_COSTS},
+    "by_driver": {
+        "cloud_untagged": "tokens",
+        "cloud_unused_commitment": "tokens",
+        "support_shared": "tickets",
+        "platform_fees": "revenue",
+    },
+}
 DRIVER_CODES = ("DEEP_DISCOUNT", "MODEL_MIX", "SUPPORT_LOAD", "DEDICATED_CLOUD")
 
 
@@ -47,10 +62,26 @@ class Policy:
 
 
 @dataclass(frozen=True)
+class Preset:
+    """A named mapping of every shared cost to a driver."""
+
+    name: str
+    drivers: tuple[tuple[str, str], ...]  # (shared cost, driver), in KNOWN_SHARED_COSTS order
+
+    def driver_for(self, shared_cost: str) -> str:
+        return dict(self.drivers)[shared_cost]
+
+
+@dataclass(frozen=True)
 class Allocation:
-    rules: tuple[str, ...]
+    presets: tuple[Preset, ...]  # the allowed presets, in the order the file lists them
     recommended: str
     sha256: str
+
+    @property
+    def rules(self) -> tuple[str, ...]:
+        """The allowed preset names: the view callers used when a rule was just a name."""
+        return tuple(p.name for p in self.presets)
 
 
 @dataclass(frozen=True)
@@ -134,21 +165,61 @@ def load_policy(config_dir: Path) -> Policy:
     )
 
 
+def _preset(path: Path, name: str, entry: object) -> Preset:
+    drivers = entry.get("drivers") if isinstance(entry, dict) else None
+    if not isinstance(drivers, dict):
+        raise MarginError(EXIT_USAGE, f"{path}: preset {name} needs a drivers mapping")
+    mapping = {str(k): str(v) for k, v in drivers.items()}
+    for cost, driver in mapping.items():
+        if cost not in KNOWN_SHARED_COSTS:
+            raise MarginError(
+                EXIT_USAGE,
+                f"{path}: preset {name} names the shared cost {cost}, which is not one of "
+                f"{', '.join(KNOWN_SHARED_COSTS)}",
+            )
+        if driver not in KNOWN_DRIVERS:
+            raise MarginError(
+                EXIT_USAGE,
+                f"{path}: preset {name} maps {cost} to the driver {driver}, which is not one of "
+                f"{', '.join(KNOWN_DRIVERS)}",
+            )
+    missing = [c for c in KNOWN_SHARED_COSTS if c not in mapping]
+    if missing:
+        raise MarginError(
+            EXIT_USAGE, f"{path}: preset {name} maps no driver for the shared cost {', '.join(missing)}"
+        )
+    return Preset(name=name, drivers=tuple((c, mapping[c]) for c in KNOWN_SHARED_COSTS))
+
+
 def load_allocation(config_dir: Path) -> Allocation:
     path = config_dir / ALLOCATION_FILE
     data = _read_yaml(path, "allocation")
-    rules = tuple(str(k) for k in (data.get("rules") or {}))
-    unknown = [r for r in rules if r not in KNOWN_RULES]
-    if not rules or unknown:
+    defined = data.get("presets") or {}
+    if not isinstance(defined, dict):
+        raise MarginError(EXIT_USAGE, f"{path}: presets must be a mapping of preset name to drivers")
+    # `allowed:` names the presets; a file from before presets lists them under `rules:` instead,
+    # and a file with only `presets:` allows the ones it defines.
+    allowed = data.get("allowed")
+    if allowed is None:
+        allowed = list(data.get("rules") or defined)
+    names = tuple(str(n) for n in allowed)
+    unknown = [n for n in (*names, *map(str, defined)) if n not in KNOWN_RULES]
+    if not names or unknown:
         raise MarginError(
             EXIT_USAGE,
             f"{path}: rules must be drawn from {', '.join(KNOWN_RULES)}"
-            + (f" (unknown: {', '.join(unknown)})" if unknown else ""),
+            + (f" (unknown: {', '.join(dict.fromkeys(unknown))})" if unknown else ""),
         )
+    # A defined preset is checked even when the file does not allow it; one that is not defined
+    # takes its built-in mapping.
+    resolved = {str(n): _preset(path, str(n), entry) for n, entry in defined.items()}
+    presets = tuple(
+        resolved[n] if n in resolved else _preset(path, n, {"drivers": BUILTIN_PRESETS[n]}) for n in names
+    )
     recommended = str(data.get("recommended", ""))
-    if recommended not in rules:
+    if recommended not in names:
         raise MarginError(EXIT_USAGE, f"{path}: recommended must be one of the allowed rules")
-    return Allocation(rules=rules, recommended=recommended, sha256=sha256_file(path))
+    return Allocation(presets=presets, recommended=recommended, sha256=sha256_file(path))
 
 
 def load_config(config_dir: Path) -> Config:
