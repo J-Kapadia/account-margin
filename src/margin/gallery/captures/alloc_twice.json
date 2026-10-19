@@ -1,0 +1,84 @@
+{
+  "error": "alloc_twice",
+  "seed": 20261013,
+  "month": "2026-03",
+  "books": "tests/fixtures/books",
+  "target": {
+    "file": "cloud_focus.csv",
+    "key": "focus_2026-03_00038_dup",
+    "ordinal": 111,
+    "account_id": "acct_0004"
+  },
+  "close": {
+    "exit": 3,
+    "message": "control failed for 2026-03: CTL-ALLOC-CONSERVE, CTL-TIE-CLD",
+    "controls": [
+      {
+        "id": "CTL-SIGNOFF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-ALLOC-CONSERVE",
+        "status": "fail",
+        "violating_rows": 1
+      },
+      {
+        "id": "CTL-CUTOFF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-PRICE-PIN",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-REV-DUP",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-SIGN",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-CLD",
+        "status": "fail",
+        "violating_rows": 1
+      },
+      {
+        "id": "CTL-TIE-INF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-REV",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-SUP",
+        "status": "pass",
+        "violating_rows": 0
+      }
+    ],
+    "failed_controls": [
+      {
+        "id": "CTL-ALLOC-CONSERVE",
+        "violating_rows": 1,
+        "detail": [
+          "cp/2026-03/acct_0004/cloud_direct: month 2026-03, rule n/a, pool cloud res-shared-01: the charge is tagged to acct_0004 and also untagged, so it is direct and shared; rows 468deaf9a90f0d78a75a39e032a8ba75,7b71659100721f6d13d3ff32e70d473b"
+        ]
+      },
+      {
+        "id": "CTL-TIE-CLD",
+        "violating_rows": 1,
+        "detail": [
+          "pnl/2026-03/5200: GL 5200: ledger 218324 cents, accounts 261331 cents, difference 43007 cents; rows 609f68e2cae03d3eba606fdff08cf1ee,08eee873d926af1b55d75dbf0d231bae,130154469420a2f4684a0c2335f8da88,1f995b79353f9a926f3198a161367172,24d861d1f594f816bee18e56f92aa441,24dc405c670b847704ac26e458f1adcf,2ee049c6403cbf407dd1390ae08a18c7,31b5d0343487415c59bec0ce11e62a8d,3b4cdde3b4fbd8cf7245a2a7ab300853,407c6968f5fb27c30d31971116b5dda0,44344f944cbc84bb39f002429ae20e03,468deaf9a90f0d78a75a39e032a8ba75,4b8e27663049602bb0e17cc6b8b7e23c,5040432084ecf7522d64c39fd9e8e4cd,581df4010e650b695d7198ff0fc59b3a,592b3c9a404466ffe36eaeb80ab73280,695b88a108f7fb597791942952956aaf,708344f2af76df519076ba60bf3c35a2,71272b297a815855b8d999e541f51836,7277cc17e67f448b64843d3a78e77a15,741b7e14aff75f2b612cd72ca94b3e7f,7ad4cf33dfb8737a66158c6c4461d72c,7b71659100721f6d13d3ff32e70d473b,7ee9e8b4a41de11a726524cb05b94cf9,86b62a39702c854f9b9b91267afde516,897b963aa5edf7ee543dfda5b2d7f066,8f8b33e6d39aad59ecfc384c8ddd9b41,9203201896d1efdb6d05d05e63fa1600,a036615188d917a2847b265199821a17,ae97130ae1b50bd4aea0771634058820,b606a684f93d69242ecb2938cafbdf7e,b853471c24081405e40beae4c3e22759,bdb8bc38d703d0c269b9174b2de953cb,bee65ead9320941f3a6ecd83e3268fac,bf3592bdb0f74e2d6e869be7a7ac18b1,c6d44e5d3a65591b0a651dfb253f6ec3,ea752db8427449fbf60950f12fd1cc26,f2cf83cb241c737c5922d0487cd08b4c,f56b17dc3ad9141757ee21c568c2e69f,fd187e79603c9ed80a988f4236a89f35"
+        ]
+      }
+    ]
+  }
+}
