@@ -30,6 +30,26 @@ uv run pytest -q tests/test_injected_errors.py
 
 The first close runs every earlier month first, passes every control and matches the answer key; the roll-forward sequence on its own warehouse closes March, locks February and March while loading April, closes and checks April, and `status` lists February and March as `locked` and April as `closed` with their result hashes (`close --recompute` re-closes a `closed` month whose model code was fixed, storing the new hash and the old one as `restated_from`; on a `locked` month it exits 4); `explain` walks a number down to the invoice, usage and cost rows it came from; the injected-error tests show each planted error failing the control that owns it; `doctor` exits 0 on the closed warehouse. The memo and agreement commands run after the scenario, as the next sections explain.
 
+## Cloud bill intake
+
+`margin import-focus --in FILE... --out FILE [--json]` maps an AWS Data Exports FOCUS 1.0 CSV export to the `cloud_focus.csv` of a books directory. It reads no warehouse and takes no lock.
+
+- It keeps the pinned FOCUS 1.0 column set, drops every other column of the export and reports their names. Besides the mandatory cost, period, currency and service columns, `cloud_focus.csv` carries six optional ones: `ListCost`, `ContractedCost`, `ChargeCategory`, `CommitmentDiscountCategory`, `CommitmentDiscountType` and `RegionId`; an optional column an export lacks is written empty, a missing mandatory one stops the import and is named.
+- Tag keys are lowercased and values kept as written. `line_id` is assigned from the export's file name and the row's position in it.
+- Costs are rounded to cents per row, and each month gets one residual `Adjustment` row so that the month's cost totals equal the export's to the cent.
+- `--in` is repeatable and accepts a directory of exports. A month present in two files is refused (exit 2): one export file per billing period.
+- Nothing is judged: a row the close's controls would fail is written as it is.
+
+On the committed export:
+
+```bash
+uv run margin import-focus --in tests/fixtures/focus/export.csv --out "$(mktemp -d)/cloud_focus.csv" --json
+```
+
+It prints one envelope, here `"status": "ok"`, `"exit": 0`, `"rows_in": 16`, `"rows_out": 18`, `"residual_rows": 2`, `"columns_dropped"` (`ChargeDescription`, `PricingUnit` and `ProviderName`, count 3) and `"months"` (`2026-02` and `2026-03`).
+
+The output is the books directory's `cloud_focus.csv`, which `close` reads like any other. `data/reference/focus_columns.md` holds the specification pin (FOCUS 1.0, its URL and the day it was read), the sixteen columns with the specification's wording, and how the books use the cost columns.
+
 ## The token-price scenario
 
 The scenario asks what happens to the accounts below the margin floor if the cost of inference follows a real, published trend in list prices. It is a what-if over synthetic accounts, not a forecast and not a statement about any company's costs.
@@ -76,6 +96,7 @@ The memo's build-versus-buy section sets what building this tool cost against th
 - Applies a published list-price trend to the synthetic accounts below the floor, in a token-price scenario that leaves the closed month untouched.
 - Rolls a month forward: `rollforward` locks every earlier closed month and loads the next month's books in one transaction, and `status` lists each month's state and result hash.
 - Publishes a static memo for the month, with an explain page for every number, an agent-readable `llms.txt` and a cached `values.csv`, and checks that the CLI, SQL, memo and cached values give the same answer for every number (`agreement`).
+- Imports a FOCUS 1.0 cloud-bill export as the books' `cloud_focus.csv` (`import-focus`).
 - Reports the health of the install and its paths (`doctor`): the Python and locked dependency versions, the books and their manifest, the sign-off, the warehouse and its lock.
 
 ## Requirements
@@ -105,11 +126,13 @@ uv run margin doctor
 | `margin gen` | Generate the books and the answer key from a seed, or verify them (`--verify`) |
 | `margin close` | Compute, control and check a month, closing earlier months first; `--recompute` re-closes a closed month |
 | `margin rollforward` | Lock every earlier closed month and load the next |
+| `margin import-focus` | Map FOCUS 1.0 cloud-bill CSV exports (files or a directory) to a books directory's `cloud_focus.csv`; `--json` prints the envelope |
 | `margin explain` | Print the provenance chain of a number |
 | `margin inject` | Copy the books with one seeded error |
 | `margin scenario` | Token-price scenario for a closed month (`--month`), or its proof against a hand-worked reference (`--check`) |
 | `margin memo` | Build the memo, its explain pages, `llms.txt` and `values.csv` as a static site for a month with a scenario run; `--check` proves it traceable and `--crawl` its links |
 | `margin agreement` | Ask every interface for every number of a month and report any disagreement; `--check` fails on one, `--write` stores the result |
+| `margin serve` | Serve one page over the pre-closed `mini` books, or render it once into a directory (`--static DIR`) |
 | `margin signoff` | Record the allocation rule's sign-off (human, interactive) |
 | `margin status` | List the months with their state and result hash |
 | `margin doctor` | Health of the install and the paths: exit 0 healthy, 1 warnings, 2 failures |

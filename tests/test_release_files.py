@@ -87,7 +87,7 @@ def test_the_readme_has_no_planned_marker_and_names_every_command():
     readme = (ROOT / "README.md").read_text()
     assert "planned" not in readme.lower()
     help_text = margin("--help").stdout
-    commands = re.findall(r"^  (\w+)\s", help_text.split("Commands:")[1], flags=re.M)
+    commands = re.findall(r"^  ([\w-]+)\s", help_text.split("Commands:")[1], flags=re.M)
     assert commands
     for name in commands:
         assert f"`margin {name}`" in readme, name
