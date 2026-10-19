@@ -48,18 +48,31 @@ uv sync --frozen
 # Fixture closes run on the fixture config and its committed sign-off; the real config/ is unsigned.
 # The books are generated and gitignored, so they are absent on a clean extraction;
 # --fixture small selects data/books/small and warehouse/small.duckdb.
+# The fast tier runs the same five steps on the committed `mini` books instead, in a scratch warehouse
+# of its own: `gen --verify` regenerates the books and compares them with the manifest, writing nothing
+# under tests/fixtures.
 export MARGIN_SIGNOFF_DIR=tests/fixtures/signoff
 fixture_config=tests/fixtures/config
-uv run margin gen --fixture small
-uv run margin close --month 2026-03 --fixture small --config "$fixture_config" --json
-uv run margin explain cp/2026-03/acct_0001/revenue --fixture small
 out=$(mktemp -d)
 work=$(mktemp -d)
 trap 'rm -rf "$out" "$work"' EXIT
-# The memo carries the scenario's numbers and refuses a month without them.
-uv run margin scenario --month 2026-03 --fixture small --config "$fixture_config"
-uv run margin memo --month 2026-03 --fixture small --out "$out"
-grep -rq data-num-id "$out"
+if [ "$fast" -eq 1 ]; then
+  uv run margin gen --fixture mini --verify
+  uv run margin close --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/fast.duckdb" --json
+  uv run margin explain cp/2026-03/acct_0001/revenue --fixture mini --warehouse "$work/fast.duckdb"
+  # The memo carries the scenario's numbers and refuses a month without them.
+  uv run margin scenario --month 2026-03 --fixture mini --config "$fixture_config" --warehouse "$work/fast.duckdb"
+  uv run margin memo --month 2026-03 --fixture mini --warehouse "$work/fast.duckdb" --out "$out"
+  grep -rq data-num-id "$out"
+else
+  uv run margin gen --fixture small
+  uv run margin close --month 2026-03 --fixture small --config "$fixture_config" --json
+  uv run margin explain cp/2026-03/acct_0001/revenue --fixture small
+  # The memo carries the scenario's numbers and refuses a month without them.
+  uv run margin scenario --month 2026-03 --fixture small --config "$fixture_config"
+  uv run margin memo --month 2026-03 --fixture small --out "$out"
+  grep -rq data-num-id "$out"
+fi
 
 # The committed `mini` books close on the signed fixture config; without a sign-off the gate exits 4.
 uv run margin close --month 2026-04 --fixture mini --config "$fixture_config" --warehouse "$work/mini.duckdb" --json
