@@ -68,6 +68,7 @@ def shared_dir(tmp_path_factory, name: str, build) -> Path:
     with open(base / f"shared-{name}.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if not done.exists():
+            shutil.rmtree(directory, ignore_errors=True)  # a build that died half way left a tree without its marker
             directory.mkdir()
             build(directory)
             done.touch()
@@ -337,6 +338,9 @@ def mini_rolled_forward_copy(mini_rolled_forward, tmp_path) -> Path:
 
 
 # ------------------------------------------------------------------ the scenario and the memo site over `mini`
+# Built once per pytest run, however many xdist workers there are (see `shared_dir`): the closed `mini`
+# warehouse with the scenario run for 2026-03 and 2026-04, and the memo site for those two months. A test
+# that only reads takes the fixture; one that changes, re-closes or locks takes the `_copy` of it.
 
 
 @pytest.fixture(scope="session")
@@ -350,7 +354,15 @@ def scenario_warehouse(tmp_path_factory, mini_closed) -> Path:
                             "--warehouse", str(directory / "w.duckdb"))
             assert result.code == 0, result.stderr
 
-    return shared_dir(tmp_path_factory, "memo_check_warehouse", build) / "w.duckdb"
+    return shared_dir(tmp_path_factory, "scenario_warehouse", build) / "w.duckdb"
+
+
+@pytest.fixture
+def scenario_warehouse_copy(scenario_warehouse, tmp_path) -> Path:
+    """A private copy of the warehouse with the scenario run, for tests that change it."""
+    copy = tmp_path / "w.duckdb"
+    shutil.copy(scenario_warehouse, copy)
+    return copy
 
 
 @pytest.fixture(scope="session")
@@ -362,4 +374,12 @@ def built_site(tmp_path_factory, scenario_warehouse) -> Path:
             result = margin("memo", "--month", month, "--out", str(directory), "--warehouse", str(scenario_warehouse))
             assert result.code == 0, result.stderr
 
-    return shared_dir(tmp_path_factory, "memo_check_site", build)
+    return shared_dir(tmp_path_factory, "site", build)
+
+
+@pytest.fixture
+def built_site_copy(built_site, tmp_path) -> Path:
+    """A private copy of the built site, for tests that change it."""
+    copy = tmp_path / "site"
+    shutil.copytree(built_site, copy)
+    return copy

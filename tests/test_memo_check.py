@@ -8,7 +8,6 @@ is skipped.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -24,18 +23,13 @@ CHECKS = ("CHK-MEMO-NUM", "CHK-MEMO-QUOTE", "CHK-MEMO-SITE")
 
 
 @pytest.fixture
-def site(built_site, tmp_path) -> Path:
-    """A private copy of the built site, for tests that change it."""
-    copy = tmp_path / "site"
-    shutil.copytree(built_site, copy)
-    return copy
+def site(built_site_copy) -> Path:
+    return built_site_copy
 
 
 @pytest.fixture
-def warehouse(scenario_warehouse, tmp_path) -> Path:
-    copy = tmp_path / "w.duckdb"
-    shutil.copy(scenario_warehouse, copy)
-    return copy
+def warehouse(scenario_warehouse_copy) -> Path:
+    return scenario_warehouse_copy
 
 
 def check(warehouse: Path, out: Path, *extra: str):

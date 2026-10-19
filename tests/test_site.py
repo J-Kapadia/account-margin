@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import MINI_CONFIG, connect, margin, shared_dir
+from conftest import connect, margin
 from margin import memo as memo_mod
 from margin import prov
 
@@ -32,22 +32,15 @@ def build_site(warehouse: Path, out: Path, month: str = MONTH) -> None:
 
 
 @pytest.fixture(scope="module")
-def mini_scenario(tmp_path_factory, mini_closed) -> Path:
-    """A copy of the closed `mini` warehouse with the scenario run for both memo months; read-only for the tests."""
-    def build(directory: Path) -> None:
-        shutil.copy(mini_closed, directory / "w.duckdb")
-        for month in (MONTH, NEXT):
-            result = margin("scenario", "--fixture", "mini", "--month", month, "--json", "--config", str(MINI_CONFIG),
-                            "--warehouse", str(directory / "w.duckdb"))
-            assert result.code == 0, result.stderr
-
-    return shared_dir(tmp_path_factory, "mini_scenario_months", build) / "w.duckdb"
+def mini_scenario(scenario_warehouse) -> Path:
+    """The closed `mini` warehouse with the scenario run for both memo months; read-only for the tests."""
+    return scenario_warehouse
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory, mini_scenario) -> Path:
-    """The site after a memo for 2026-03; read-only for the tests."""
-    return shared_dir(tmp_path_factory, "site", lambda d: build_site(mini_scenario, d))
+def site(built_site) -> Path:
+    """The site after a memo for 2026-03 and then 2026-04, built once for the run; read-only for the tests."""
+    return built_site
 
 
 @pytest.fixture(scope="module")
@@ -133,7 +126,7 @@ def test_values_csv_holds_the_agreement_set(site, mini_closed):
 
 def test_llms_txt_follows_the_grammar(site):
     lines = (site / "llms.txt").read_text().splitlines()
-    patterns = [*LLMS_LINES, r"- \[values 2026-03\]\(2026-03/values\.csv\)"]
+    patterns = [*LLMS_LINES, r"- \[values 2026-03\]\(2026-03/values\.csv\)", r"- \[values 2026-04\]\(2026-04/values\.csv\)"]
     assert len(lines) == len(patterns)
     for line, pattern in zip(lines, patterns):
         assert re.fullmatch(pattern, line), line
@@ -146,10 +139,8 @@ def test_compiled_sql_is_the_stored_model(site, mini_closed):
     assert (site / "sql" / "fct_contribution_profit.sql").read_text() == stored
 
 
-def test_the_indexes_list_the_months_with_a_memo(tmp_path, mini_scenario):
-    out = tmp_path / "site"
-    build_site(mini_scenario, out)
-    build_site(mini_scenario, out, NEXT)
+def test_the_indexes_list_the_months_with_a_memo(built_site_copy, mini_scenario):
+    out = built_site_copy  # both months built, as two `memo` runs into one directory leave it
     for text in ((out / "index.html").read_text(), (out / "llms.txt").read_text()):
         assert MONTH in text and NEXT in text
     assert "[values 2026-04](2026-04/values.csv)" in (out / "llms.txt").read_text()

@@ -156,17 +156,18 @@ def test_provenance_passes_on_a_second_close(reference_dir, closed_with_fixture)
     assert bvb(warehouse).keys() == expected().keys()
 
 
-def test_the_figures_sit_outside_the_result_hash(closed_with_fixture, tmp_path):
+def test_the_figures_sit_outside_the_result_hash(closed_with_fixture, mini_closed_march):
     _, with_files = closed_with_fixture
-    bare = tmp_path / "bare"
-    bare.mkdir()
-    for source in sorted((ROOT / "data" / "reference").glob("*.csv")):
-        shutil.copy(source, bare / source.name)
-    result = close_with(bare, tmp_path / "bare.duckdb")
-    assert result.code == 0, result.stderr
-    assert result.json["result_hash"] == with_files.json["result_hash"]
+    # The committed reference tables hold no build-cost file, so the shared March close of `mini` is the
+    # close without the figures: its stored hash is what a close on those tables yields.
+    with connect(str(mini_closed_march), read_only=True) as con:
+        bare_hash = con.execute("SELECT result_hash FROM state.close_state WHERE month = DATE '2026-03-01'").fetchone()[0]
+    assert bvb(mini_closed_march) == {}
+    assert bare_hash == with_files.json["result_hash"]
 
 
+# The reference files are read at close, so this close must be its own: the synthetic vendor table
+# without the build-cost file is an input the shared closes never saw.
 def test_a_close_without_the_totals_writes_no_figures(reference_dir, tmp_path):
     (reference_dir / "build_cost.csv").unlink()
     warehouse = tmp_path / "w.duckdb"

@@ -13,7 +13,6 @@ import sys
 from conftest import MINI_CONFIG, ROOT, close_mini, connect, margin
 from margin import dbt_runner
 from test_lock import hold_exclusive
-from test_rollforward import rollforward
 from test_status import status
 
 MONTH = "2026-03"
@@ -24,6 +23,8 @@ def scenario(warehouse, month=MONTH):
                   "--warehouse", str(warehouse))
 
 
+# The first test closes the month itself, before and after the scenario: its assertion is that the two
+# closes agree, so each is a real close of the copy.
 def test_a_scenario_between_two_closes_leaves_the_month_and_its_hash_unchanged(mini_closed_copy):
     before = close_mini(mini_closed_copy, MONTH)
     assert before.code == 0, before.stderr
@@ -40,10 +41,8 @@ def test_a_scenario_between_two_closes_leaves_the_month_and_its_hash_unchanged(m
     assert status(mini_closed_copy).stdout == listed.stdout
 
 
-def test_a_scenario_on_a_locked_month_exits_0_and_changes_no_state(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, MONTH).code == 0
-    assert rollforward(warehouse, "2026-04").code == 0
+def test_a_scenario_on_a_locked_month_exits_0_and_changes_no_state(mini_rolled_forward_copy):
+    warehouse = mini_rolled_forward_copy  # March closed, then rolled forward: February and March locked, April open
     listed = status(warehouse)
     assert {m["month"]: m["status"] for m in listed.json["months"]} == {
         "2026-02": "locked", "2026-03": "locked", "2026-04": "open"}
@@ -53,10 +52,8 @@ def test_a_scenario_on_a_locked_month_exits_0_and_changes_no_state(tmp_path):
     assert status(warehouse).stdout == listed.stdout
 
 
-def test_a_scenario_on_an_open_month_exits_4_and_writes_nothing(tmp_path):
-    warehouse = tmp_path / "w.duckdb"
-    assert close_mini(warehouse, MONTH).code == 0
-    assert rollforward(warehouse, "2026-04").code == 0  # April is loaded and open
+def test_a_scenario_on_an_open_month_exits_4_and_writes_nothing(mini_rolled_forward_copy):
+    warehouse = mini_rolled_forward_copy  # April is loaded and open
     listed = status(warehouse)
 
     result = scenario(warehouse, "2026-04")

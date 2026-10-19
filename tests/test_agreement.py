@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import MINI_CONFIG, connect, margin, shared_dir
+from conftest import connect, margin
 from margin import agreement
 from margin.cli import explain
 
@@ -23,26 +23,14 @@ HOLDER = (
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory, mini_closed) -> Path:
-    """The site after a memo for 2026-03; read-only for the tests."""
-    def build(directory: Path) -> None:
-        # `memo` refuses a month without scenario records: run the scenario on a private copy
-        warehouse = directory.parent / f"{directory.name}-w.duckdb"
-        shutil.copy(mini_closed, warehouse)
-        result = margin("scenario", "--fixture", "mini", "--month", MONTH, "--config", str(MINI_CONFIG),
-                        "--warehouse", str(warehouse))
-        assert result.code == 0, result.stderr
-        result = margin("memo", "--month", MONTH, "--out", str(directory), "--warehouse", str(warehouse))
-        assert result.code == 0, result.stderr
-
-    return shared_dir(tmp_path_factory, "agreement-site", build)
+def site(built_site) -> Path:
+    """The site after a memo for 2026-03 and 2026-04; read-only for the tests."""
+    return built_site
 
 
 @pytest.fixture
-def site_copy(site, tmp_path) -> Path:
-    copy = tmp_path / "site"
-    shutil.copytree(site, copy)
-    return copy
+def site_copy(built_site_copy) -> Path:
+    return built_site_copy
 
 
 def run(mini_closed: Path, site: Path, *extra: str):
@@ -156,7 +144,8 @@ def test_the_parser_rejects_a_malformed_llms_txt(text):
 
 def test_the_parser_reads_the_links_of_a_well_formed_file(site):
     links = agreement.parse_llms((site / "llms.txt").read_text())
-    assert links == {"sql": "sql/fct_contribution_profit.sql", f"values {MONTH}": f"{MONTH}/values.csv"}
+    assert links == {"sql": "sql/fct_contribution_profit.sql", f"values {MONTH}": f"{MONTH}/values.csv",
+                     "values 2026-04": "2026-04/values.csv"}
 
 
 def test_a_site_without_the_memo_exits_4(mini_closed, site_copy):

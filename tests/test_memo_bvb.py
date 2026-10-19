@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import MINI_CONFIG, ROOT, close_mini, connect, margin
+from conftest import MINI_CONFIG, ROOT, close_mini, connect, margin, shared_dir
 from margin import explain as explain_mod
 from test_memo_scenario import CITE, text_of
 from test_memo_sections import HEADINGS, NUM_SPAN, naked_numerals, section
@@ -58,12 +58,17 @@ def build_memo(tmp_path: Path, with_fixture: bool) -> tuple[Path, Path, str]:
 
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
-    return build_memo(tmp_path_factory.mktemp("bvb_fixture"), True)
+    """(warehouse, site, page) with the two reference files present. The reference files are loaded
+    at close, so this needs a close of its own; it is built once for the run, not once per worker."""
+    directory = shared_dir(tmp_path_factory, "bvb_memo", lambda d: build_memo(d, True))
+    return directory / "w.duckdb", directory / "site", (directory / "site" / MONTH / "index.html").read_text()
 
 
 @pytest.fixture(scope="module")
-def bare(tmp_path_factory):
-    return build_memo(tmp_path_factory.mktemp("bvb_bare"), False)
+def bare(scenario_warehouse, built_site):
+    """(warehouse, site, page) without the build-cost file. That is the reference data the shared
+    `mini` close already loaded, so the shared scenario warehouse and memo site stand in for it."""
+    return scenario_warehouse, built_site, (built_site / MONTH / "index.html").read_text()
 
 
 @pytest.fixture(scope="module")

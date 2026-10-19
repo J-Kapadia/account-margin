@@ -7,11 +7,12 @@ the month as it was.
 
 from __future__ import annotations
 
+import json
 import shutil
 
 import pytest
 
-from conftest import MINI_CONFIG, connect, margin
+from conftest import MINI_CONFIG, connect, margin, shared_dir
 from margin import prov
 
 MONTH = "2026-03"
@@ -49,12 +50,17 @@ def population(warehouse):
 
 @pytest.fixture(scope="module")
 def ran(mini_closed, tmp_path_factory):
-    """(warehouse, envelope) after one scenario run over a private copy; read-only for the tests."""
-    warehouse = tmp_path_factory.mktemp("scenario") / "w.duckdb"
-    shutil.copy(mini_closed, warehouse)
-    result = run_scenario(warehouse)
-    assert result.code == 0, result.stderr
-    return warehouse, result.json
+    """(warehouse, envelope) after one scenario run over a private copy, made once for the whole run;
+    read-only for the tests. The shared scenario warehouse has two months run, which these counts
+    would see, so this run keeps its own."""
+    def build(directory):
+        shutil.copy(mini_closed, directory / "w.duckdb")
+        result = run_scenario(directory / "w.duckdb")
+        assert result.code == 0, result.stderr
+        (directory / "envelope.json").write_text(result.stdout)
+
+    directory = shared_dir(tmp_path_factory, "scenario_month_ran", build)
+    return directory / "w.duckdb", json.loads((directory / "envelope.json").read_text())
 
 
 def test_a_run_writes_every_record_of_the_grammar(ran):
@@ -119,6 +125,8 @@ def test_a_zero_revenue_account_has_no_margin(ran):
         assert found[f"scenario/{MONTH}/{case}/summary/{ZERO_REVENUE}/recovery_quarter"][1] == "none"
 
 
+# The assertion is that a close after the scenario finds the month as a close before it left it, so
+# both closes run on the copy.
 def test_a_close_afterwards_finds_the_month_unchanged(mini_closed_copy):
     warehouse = mini_closed_copy
     before = close_month(warehouse)
