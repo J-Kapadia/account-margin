@@ -1,4 +1,4 @@
-"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement, doctor.
+"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement, doctor, import-focus.
 
 Every command takes the path flags and `--json`; an error becomes a failure
 envelope and the exit code of the error contract (see errors.py).
@@ -16,7 +16,8 @@ from . import agreement as agreement_mod
 from . import check as check_mod
 from . import close as close_mod
 from . import doctor as doctor_mod
-from . import envelope, explain as explain_mod, gen as gen_mod, gen_config, gen_plan, memo as memo_mod
+from . import envelope, explain as explain_mod, focus_import as focus_import_mod, gen as gen_mod, gen_config, gen_plan
+from . import memo as memo_mod
 from . import inject as inject_mod
 from . import memo_check as memo_check_mod
 from . import rollforward as rollforward_mod
@@ -343,6 +344,23 @@ def doctor(paths: Paths):
     """Report the health of the install and of the paths: exit 0 healthy, 1 warnings, 2 failures."""
     checks, code = doctor_mod.run(paths)
     return {"exit": code, "checks": checks}, doctor_mod.render(checks)
+
+
+@main.command("import-focus")
+@click.option("--in", "inputs", required=True, multiple=True, type=click.Path(path_type=Path),
+              help="FOCUS 1.0 CSV export, or a directory of them; repeatable.")
+@click.option("--out", required=True, type=click.Path(path_type=Path),
+              help="The books directory's cloud_focus.csv to write, whole.")
+@click.option("--json", "as_json", is_flag=True, help="Machine output on stdout.")
+def import_focus(inputs: tuple[Path, ...], out: Path, as_json: bool):
+    """Map AWS Data Exports FOCUS 1.0 CSV files to cloud_focus.csv; reads no warehouse, takes no lock."""
+    def run():
+        summary = focus_import_mod.import_focus(list(inputs), out)
+        dropped = summary["columns_dropped"]["count"]
+        return summary, [f"wrote {summary['rows_out']} rows ({summary['residual_rows']} rounding rows) to {out}; "
+                         f"{dropped} columns dropped"]
+
+    return _guard(as_json, run)
 
 
 @main.command()
