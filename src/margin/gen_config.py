@@ -41,6 +41,7 @@ class Policy:
     planted_band_pts: Decimal
     unplanted_band_pts: Decimal
     decoy_band_pts: Decimal
+    tag_coverage_max_untagged_pct: int
     cohort_rule: str
     drivers: tuple[Driver, ...]
     sha256: str
@@ -109,6 +110,17 @@ def _number(data: dict, key: str, path: Path, *, minimum: Decimal | None = None)
     return value
 
 
+def _integer(data: dict, key: str, path: Path, *, minimum: int, maximum: int) -> int:
+    if key not in data:
+        raise MarginError(EXIT_USAGE, f"{path}: missing key {key!r}")
+    value = data[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise MarginError(EXIT_USAGE, f"{path}: {key} must be an integer")
+    if not minimum <= value <= maximum:
+        raise MarginError(EXIT_USAGE, f"{path}: {key} must be between {minimum} and {maximum}")
+    return value
+
+
 def load_policy(config_dir: Path) -> Policy:
     path = config_dir / POLICY_FILE
     data = _read_yaml(path, "policy")
@@ -128,6 +140,7 @@ def load_policy(config_dir: Path) -> Policy:
         planted_band_pts=_number(data, "planted_band_pts", path, minimum=zero),
         unplanted_band_pts=_number(data, "unplanted_band_pts", path, minimum=zero),
         decoy_band_pts=_number(data, "decoy_band_pts", path, minimum=zero),
+        tag_coverage_max_untagged_pct=_integer(data, "tag_coverage_max_untagged_pct", path, minimum=0, maximum=100),
         cohort_rule=str(data.get("cohort_rule", "")),
         drivers=tuple(drivers),
         sha256=sha256_file(path),

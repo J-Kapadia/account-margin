@@ -33,25 +33,46 @@ TRUTH_FILES = (
 )
 INVOICE_COLS = [
     "invoice_id", "line_id", "account_id", "service_period", "gl_period", "issued_date",
-    "line_type", "model", "quantity_tokens", "unit_price", "amount_cents",
+    "line_type", "model", "quantity_tokens", "unit_price", "amount_cents", "product",
 ]
 FOCUS_COLS = [
     "ChargePeriodStart", "ChargePeriodEnd", "BilledCost", "EffectiveCost", "BillingCurrency",
     "ServiceName", "ServiceCategory", "ResourceId", "Tags", "line_id",
+    "ListCost", "ContractedCost", "ChargeCategory", "CommitmentDiscountCategory",
+    "CommitmentDiscountType", "RegionId",
 ]
 TICKET_COLS = ["ticket_id", "account_id", "opened_date", "closed_date", "handle_minutes", "tier"]
-# Untagged shared services: (name, FOCUS category, resource, weight, emitted daily)
+# Shared services, tagged `tenant=shared`: (name, FOCUS category, resource, weight, emitted daily)
 SHARED_SERVICES = [
     ("Managed API Gateway", "Networking", "res-gateway-01", 35, False),
     ("Observability Platform", "Management and Governance", "res-observe-01", 25, True),
     ("Object Storage", "Storage", "res-storage-01", 15, False),
     ("Shared Compute", "Compute", "res-shared-01", 25, False),
 ]
+# The planted untagged set, rows with no tag keys at all: (name, FOCUS category, resource, weight)
+UNTAGGED_SERVICES = [
+    ("Unattributed Compute", "Compute", "res-orphan-01", 5),
+    ("Unattributed Storage", "Storage", "res-orphan-02", 3),
+    ("Unattributed Data Transfer", "Networking", "res-orphan-03", 2),
+]
 TAGGED_SERVICES = [
     ("Dedicated Inference Cluster", "Compute", "res-dedicated-{acct}", 70),
     ("Dedicated Network Egress", "Networking", "res-egress-{acct}", 30),
 ]
+PRODUCTS = ("api", "batch", "dedicated")
+TEAMS = ("enterprise", "growth", "self_serve")
+TEAM_OF_PLAN = {"usage": "self_serve", "committed": "growth", "enterprise": "enterprise"}
+REGIONS = ("us-east-1", "us-west-2", "eu-west-1")
+# The monthly, no-upfront compute commitment: it covers part of the Dedicated Inference Cluster and
+# Shared Compute usage in every month but the window's first, and its unused part is one purchase row.
+COMMITMENT = ("Compute Savings Plan", "Compute", "res-commit-01", "Spend", "Savings Plan")
+COVERED_SERVICES = ("Dedicated Inference Cluster", "Shared Compute")
+COVERED_PCT = 40  # of a covered service's usage cents
+BENEFIT_DIVISOR = 3  # covered usage is contracted at its effective cost plus a third, at least a cent more
+LIST_NUM, LIST_DEN = 11, 10  # list cost over contracted cost
 SHARED_POOL_FRACTION = Decimal("0.10")  # of the month's provider inference cost
+UNUSED_COMMITMENT_FRACTION = (30, 30)  # of the shared pool: (lo, span) in thousandths
+UNTAGGED_SHARE = (48, 4)  # of the month's usage effective cost: (lo, span) in thousandths
 MAX_ITERATIONS = 40
 MAX_SHRINKS = 10
 
@@ -455,28 +476,55 @@ def emit_month(ctx: Ctx, month: str, ams: list[AM], ev: Eval, rows: Rows) -> Non
     issued = f"{month}-{last_day(month):02d}"
     totals = {"4000": 0, "4100": 0, "4900": 0}
     focus_total = 0
+    covered_total = 0
     support_total = 0
     n_focus = 0
+    committed = ctx.layout.months.index(month) >= 1
 
-    def add_focus(start, end, cents, service, category, resource, tags):
-        nonlocal n_focus, focus_total
+    def tags_of(tenant, product, team):
+        return json.dumps({"tenant": tenant, "product": product, "team": team}, separators=(",", ":"))
+
+    def shared_tags(resource):
+        return tags_of("shared", PRODUCTS[rng(seed, "product", resource).randrange(len(PRODUCTS))],
+                       TEAMS[rng(seed, "team", resource).randrange(len(TEAMS))])
+
+    def add_focus(start, end, cents, service, category, resource, tags, *, covered=False,
+                  charge="Usage", billed=None):
+        """One FOCUS row. Covered usage is billed through the purchase row, so its own BilledCost is zero."""
+        nonlocal n_focus, focus_total, covered_total
         n_focus += 1
         focus_total += cents
-        rows.focus.append([start, end, _fmt(cents), _fmt(cents), "USD", service, category, resource,
-                           tags, f"focus_{month}_{n_focus:05d}"])
+        contracted = cents + max(1, cents // BENEFIT_DIVISOR) if covered else cents
+        if billed is None:
+            billed = 0 if covered else cents
+        if covered:
+            covered_total += cents
+        commit = COMMITMENT[3:] if covered or charge == "Purchase" else ("", "")
+        region = REGIONS[rng(seed, "region", resource).randrange(len(REGIONS))]
+        rows.focus.append([start, end, _fmt(billed), _fmt(cents), "USD", service, category, resource,
+                           tags, f"focus_{month}_{n_focus:05d}", _fmt(contracted * LIST_NUM // LIST_DEN),
+                           _fmt(contracted), charge, *commit, region])
+
+    def add_usage(start, end, cents, service, category, resource, tags):
+        """Usage cost; in a committed month part of a covered service's cost is covered usage."""
+        covered = cents * COVERED_PCT // 100 if committed and service in COVERED_SERVICES else 0
+        if covered:
+            add_focus(start, end, covered, service, category, resource, tags, covered=True)
+        if cents - covered:
+            add_focus(start, end, cents - covered, service, category, resource, tags)
 
     for am in sorted(ams, key=lambda a: a.account_id):
         acct, spec = am.account_id, am.spec
         invoice_id, line = f"inv_{month}_{acct}", 0
 
-        def add_line(line_type, model, qty, price, cents):
+        def add_line(line_type, model, qty, price, cents, product):
             nonlocal line
             line += 1
             rows.invoices.append([invoice_id, f"{invoice_id}_{line:02d}", acct, month, month, issued,
-                                  line_type, model, qty, price, cents])
+                                  line_type, model, qty, price, cents, product])
 
         if am.fee:
-            add_line("platform_fee", "", "", "", am.fee)
+            add_line("platform_fee", "", "", "", am.fee, "dedicated" if am.direct else "api")
             totals["4000"] += am.fee
         for model in ctx.models:
             if model not in am.tokens:
@@ -486,18 +534,20 @@ def emit_month(ctx: Ctx, month: str, ams: list[AM], ev: Eval, rows: Rows) -> Non
             if am.billed:
                 net = ctx.net_price(model, spec.discount)
                 cents = usage_line_cents(i + o, net)
-                add_line("usage", model, i + o, f"{net:.4f}", cents)
+                product = "batch" if rng(seed, acct, f"product:{model}").random() < 0.3 else "api"
+                add_line("usage", model, i + o, f"{net:.4f}", cents, product)
                 totals["4100"] += cents
         if am.credit:
-            add_line("credit", "", "", "", am.credit)
+            add_line("credit", "", "", "", am.credit, "api")
             totals["4900"] += am.credit
 
         if am.direct:
             parts = ref.apportion(am.direct, {name: w for name, _, _, w in TAGGED_SERVICES})
+            tags = tags_of(acct, "dedicated", TEAM_OF_PLAN[spec.plan])
             for name, category, resource, _ in TAGGED_SERVICES:
                 if parts[name]:
-                    add_focus(_stamp(month), _stamp(month, end=True), parts[name], name, category,
-                              resource.format(acct=acct), json.dumps({"tenant": acct}, separators=(",", ":")))
+                    add_usage(_stamp(month), _stamp(month, end=True), parts[name], name, category,
+                              resource.format(acct=acct), tags)
 
         if am.minutes:
             n = min(30, max(1, am.minutes // 40))
@@ -522,20 +572,46 @@ def emit_month(ctx: Ctx, month: str, ams: list[AM], ev: Eval, rows: Rows) -> Non
                                      f"{month}-{20 + rng(seed, am.account_id, 'open-day').randrange(9):02d}",
                                      "", 20, am.spec.tier])
 
+    # The month's pool is the shared services, the planted untagged set and the unused part of the
+    # commitment. The untagged set is about five percent of the month's usage effective cost.
+    unused = 0
+    if committed:
+        fraction = _factor(ctx, "unused", month, "total", *UNUSED_COMMITMENT_FRACTION)
+        unused = int((Decimal(ev.pool) * fraction).quantize(Decimal(1), ROUND_HALF_EVEN))
+    usage_total = sum(am.direct for am in ams) + ev.pool - unused
+    share = _factor(ctx, "untagged", month, "share", *UNTAGGED_SHARE)
+    untagged = int((Decimal(usage_total) * share).quantize(Decimal(1), ROUND_HALF_EVEN))
+    services = ev.pool - unused - untagged
+    if services <= 0:
+        raise GenerationError(f"{month}: the shared pool is too small for the untagged set and the commitment")
+
     pr = rng(seed, "pool", f"rows:{month}")
     weights = {s[0]: s[3] + pr.randrange(6) for s in SHARED_SERVICES}
+    apportioned = ref.apportion(services, weights)
     for name, category, resource, _, daily in SHARED_SERVICES:
-        cents = ref.apportion(ev.pool, weights)[name]
+        cents = apportioned[name]
         if not cents:
             continue
+        tags = shared_tags(resource)
         if daily:
             days = {f"{d:02d}": 1 for d in range(1, last_day(month) + 1)}
             for day, part in ref.apportion(cents, days).items():
                 if part:
-                    add_focus(_stamp(month, int(day)), _stamp(month, int(day), end=True), part,
-                              name, category, resource, "{}")
+                    add_usage(_stamp(month, int(day)), _stamp(month, int(day), end=True), part,
+                              name, category, resource, tags)
         else:
-            add_focus(_stamp(month), _stamp(month, end=True), cents, name, category, resource, "{}")
+            add_usage(_stamp(month), _stamp(month, end=True), cents, name, category, resource, tags)
+
+    ur = rng(seed, "untagged", f"rows:{month}")
+    parts = ref.apportion(untagged, {s[0]: s[3] + ur.randrange(3) for s in UNTAGGED_SERVICES})
+    for name, category, resource, _ in UNTAGGED_SERVICES:
+        if parts[name]:
+            add_usage(_stamp(month), _stamp(month, end=True), parts[name], name, category, resource, "{}")
+
+    if committed and unused:
+        name, category, resource = COMMITMENT[:3]
+        add_focus(_stamp(month), _stamp(month, end=True), unused, name, category, resource,
+                  shared_tags(resource), charge="Purchase", billed=unused + covered_total)
 
     for model, cents in sorted(ev.provider.items()):
         tokens = sum(sum(a.tokens[model]) for a in ev.accts.values() if model in a.tokens)

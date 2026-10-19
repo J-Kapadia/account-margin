@@ -69,14 +69,14 @@
         "id": "CTL-REV-DUP",
         "violating_rows": 1,
         "detail": [
-          "cp/2026-03/acct_0012/revenue: month 2026-03: duplicate invoice line by natural key (acct_0012, 2026-03, platform_fee, , 5000), 2 rows; rows 669565c3c9c5d1facd4c87db1a8a9e44,f567fabf53bbcdb6e777d4b1656986ed"
+          "cp/2026-03/acct_0012/revenue: month 2026-03: duplicate invoice line by natural key (acct_0012, 2026-03, platform_fee, , 5000), 2 rows; rows 92f0737571c87cba5d7e941e8f3494d8,b21386f3ea6fc6d9c62acd6097e53dd0"
         ]
       },
       {
         "id": "CTL-TIE-REV",
         "violating_rows": 1,
         "detail": [
-          "pnl/2026-03/4000: GL 4000: ledger 314100 cents, accounts 319100 cents, difference 5000 cents; rows 00efc1f523355b7298eb943faa4745f4,1fd96cd45efd15792ebd3769c81b2cb9,21610aeaf92302c5ba54685488814277,33db620a6064d8249dec5a6726dec4fd,517422bf14b3359788e3e7bc2106586c,5475b878aa655ddae27d4c703ed95ae2,669565c3c9c5d1facd4c87db1a8a9e44,760d86d5af601b8b6d04f20f8c599bf4,d6c065214aba177dd0fd70849909222d,e11760831e705a373f22f75cdb3b5679,e52e8128bfddcedbc04b235dfb6760cb,f567fabf53bbcdb6e777d4b1656986ed,f5e30227aebe70f45ac2731e7b731fcb"
+          "pnl/2026-03/4000: GL 4000: ledger 314100 cents, accounts 319100 cents, difference 5000 cents; rows 00efc1f523355b7298eb943faa4745f4,1f0291f279f54710e189818285fcb2e9,3dc91fecf31288de176b2db2790ced53,5bed5524986e60f968440e09bb183e25,73ff9c4616d7ac7e477818e6fe8605d9,92f0737571c87cba5d7e941e8f3494d8,94bc1f81eafc46591b32ee7ee8e9e43f,ae919eb31395d4ce6a5924a5346a371c,b21386f3ea6fc6d9c62acd6097e53dd0,b8ced45bbb20938d5bc819c597742b85,dca1c33c15e13e506900130608d2b34d,dce404a8f006b1c0735150781feb89ec,f50a882092070cd8d0a1deda2be9e0e6"
         ]
       }
     ]

@@ -320,7 +320,7 @@ def recompute_from_books(
     for r in _rows(books / "cloud_focus.csv"):
         month = r["ChargePeriodStart"][:7]
         tenant = json.loads(r["Tags"] or "{}").get("tenant")
-        if tenant:
+        if tenant and tenant != "shared":
             acct(month, tenant).direct_cents += _cents(r["EffectiveCost"])
         else:
             pools[month] += _cents(r["EffectiveCost"])

@@ -48,6 +48,7 @@ ABSENT_OK = {
         "ListCost", "ContractedCost", "ChargeCategory", "CommitmentDiscountCategory",
         "CommitmentDiscountType", "RegionId",
     ],
+    "invoices": ["product"],
 }
 REFERENCE_DIR = ROOT / "data" / "reference"
 PRICES_CSV = "model_prices.csv"

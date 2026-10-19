@@ -11,5 +11,6 @@ select
     cast(nullif(quantity_tokens, '') as bigint) as quantity_tokens,
     cast(nullif(unit_price, '') as decimal(18, 4)) as unit_price,
     cast(amount_cents as bigint) as amount_cents,
+    nullif(product, '') as product,
     _row_hash
 from {{ source('raw', 'invoices') }}

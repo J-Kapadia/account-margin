@@ -1,111 +1,128 @@
-ChargePeriodStart,ChargePeriodEnd,BilledCost,EffectiveCost,BillingCurrency,ServiceName,ServiceCategory,ResourceId,Tags,line_id
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,43.72,43.72,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009""}",focus_2026-02_00001
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,18.74,18.74,USD,Dedicated Network Egress,Networking,res-egress-acct_0009,"{""tenant"":""acct_0009""}",focus_2026-02_00002
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,316.27,316.27,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010""}",focus_2026-02_00003
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,135.55,135.55,USD,Dedicated Network Egress,Networking,res-egress-acct_0010,"{""tenant"":""acct_0010""}",focus_2026-02_00004
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,609.13,609.13,USD,Managed API Gateway,Networking,res-gateway-01,{},focus_2026-02_00005
-2026-02-01T00:00:00Z,2026-02-02T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00006
-2026-02-02T00:00:00Z,2026-02-03T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00007
-2026-02-03T00:00:00Z,2026-02-04T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00008
-2026-02-04T00:00:00Z,2026-02-05T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00009
-2026-02-05T00:00:00Z,2026-02-06T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00010
-2026-02-06T00:00:00Z,2026-02-07T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00011
-2026-02-07T00:00:00Z,2026-02-08T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00012
-2026-02-08T00:00:00Z,2026-02-09T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00013
-2026-02-09T00:00:00Z,2026-02-10T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00014
-2026-02-10T00:00:00Z,2026-02-11T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00015
-2026-02-11T00:00:00Z,2026-02-12T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00016
-2026-02-12T00:00:00Z,2026-02-13T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00017
-2026-02-13T00:00:00Z,2026-02-14T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00018
-2026-02-14T00:00:00Z,2026-02-15T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00019
-2026-02-15T00:00:00Z,2026-02-16T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00020
-2026-02-16T00:00:00Z,2026-02-17T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00021
-2026-02-17T00:00:00Z,2026-02-18T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00022
-2026-02-18T00:00:00Z,2026-02-19T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00023
-2026-02-19T00:00:00Z,2026-02-20T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00024
-2026-02-20T00:00:00Z,2026-02-21T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00025
-2026-02-21T00:00:00Z,2026-02-22T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00026
-2026-02-22T00:00:00Z,2026-02-23T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00027
-2026-02-23T00:00:00Z,2026-02-24T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00028
-2026-02-24T00:00:00Z,2026-02-25T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00029
-2026-02-25T00:00:00Z,2026-02-26T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00030
-2026-02-26T00:00:00Z,2026-02-27T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00031
-2026-02-27T00:00:00Z,2026-02-28T00:00:00Z,16.03,16.03,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00032
-2026-02-28T00:00:00Z,2026-03-01T00:00:00Z,16.02,16.02,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-02_00033
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,288.53,288.53,USD,Object Storage,Storage,res-storage-01,{},focus_2026-02_00034
-2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,400.74,400.74,USD,Shared Compute,Compute,res-shared-01,{},focus_2026-02_00035
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,36.94,36.94,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009""}",focus_2026-03_00001
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,15.83,15.83,USD,Dedicated Network Egress,Networking,res-egress-acct_0009,"{""tenant"":""acct_0009""}",focus_2026-03_00002
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,308.63,308.63,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010""}",focus_2026-03_00003
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,132.27,132.27,USD,Dedicated Network Egress,Networking,res-egress-acct_0010,"{""tenant"":""acct_0010""}",focus_2026-03_00004
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,568.31,568.31,USD,Managed API Gateway,Networking,res-gateway-01,{},focus_2026-03_00005
-2026-03-01T00:00:00Z,2026-03-02T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00006
-2026-03-02T00:00:00Z,2026-03-03T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00007
-2026-03-03T00:00:00Z,2026-03-04T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00008
-2026-03-04T00:00:00Z,2026-03-05T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00009
-2026-03-05T00:00:00Z,2026-03-06T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00010
-2026-03-06T00:00:00Z,2026-03-07T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00011
-2026-03-07T00:00:00Z,2026-03-08T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00012
-2026-03-08T00:00:00Z,2026-03-09T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00013
-2026-03-09T00:00:00Z,2026-03-10T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00014
-2026-03-10T00:00:00Z,2026-03-11T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00015
-2026-03-11T00:00:00Z,2026-03-12T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00016
-2026-03-12T00:00:00Z,2026-03-13T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00017
-2026-03-13T00:00:00Z,2026-03-14T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00018
-2026-03-14T00:00:00Z,2026-03-15T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00019
-2026-03-15T00:00:00Z,2026-03-16T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00020
-2026-03-16T00:00:00Z,2026-03-17T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00021
-2026-03-17T00:00:00Z,2026-03-18T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00022
-2026-03-18T00:00:00Z,2026-03-19T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00023
-2026-03-19T00:00:00Z,2026-03-20T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00024
-2026-03-20T00:00:00Z,2026-03-21T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00025
-2026-03-21T00:00:00Z,2026-03-22T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00026
-2026-03-22T00:00:00Z,2026-03-23T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00027
-2026-03-23T00:00:00Z,2026-03-24T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00028
-2026-03-24T00:00:00Z,2026-03-25T00:00:00Z,13.38,13.38,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00029
-2026-03-25T00:00:00Z,2026-03-26T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00030
-2026-03-26T00:00:00Z,2026-03-27T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00031
-2026-03-27T00:00:00Z,2026-03-28T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00032
-2026-03-28T00:00:00Z,2026-03-29T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00033
-2026-03-29T00:00:00Z,2026-03-30T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00034
-2026-03-30T00:00:00Z,2026-03-31T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00035
-2026-03-31T00:00:00Z,2026-04-01T00:00:00Z,13.37,13.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-03_00036
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,276.48,276.48,USD,Object Storage,Storage,res-storage-01,{},focus_2026-03_00037
-2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,430.07,430.07,USD,Shared Compute,Compute,res-shared-01,{},focus_2026-03_00038
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,60.96,60.96,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009""}",focus_2026-04_00001
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,26.13,26.13,USD,Dedicated Network Egress,Networking,res-egress-acct_0009,"{""tenant"":""acct_0009""}",focus_2026-04_00002
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,309.32,309.32,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010""}",focus_2026-04_00003
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,132.57,132.57,USD,Dedicated Network Egress,Networking,res-egress-acct_0010,"{""tenant"":""acct_0010""}",focus_2026-04_00004
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,556.64,556.64,USD,Managed API Gateway,Networking,res-gateway-01,{},focus_2026-04_00005
-2026-04-01T00:00:00Z,2026-04-02T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00006
-2026-04-02T00:00:00Z,2026-04-03T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00007
-2026-04-03T00:00:00Z,2026-04-04T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00008
-2026-04-04T00:00:00Z,2026-04-05T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00009
-2026-04-05T00:00:00Z,2026-04-06T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00010
-2026-04-06T00:00:00Z,2026-04-07T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00011
-2026-04-07T00:00:00Z,2026-04-08T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00012
-2026-04-08T00:00:00Z,2026-04-09T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00013
-2026-04-09T00:00:00Z,2026-04-10T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00014
-2026-04-10T00:00:00Z,2026-04-11T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00015
-2026-04-11T00:00:00Z,2026-04-12T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00016
-2026-04-12T00:00:00Z,2026-04-13T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00017
-2026-04-13T00:00:00Z,2026-04-14T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00018
-2026-04-14T00:00:00Z,2026-04-15T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00019
-2026-04-15T00:00:00Z,2026-04-16T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00020
-2026-04-16T00:00:00Z,2026-04-17T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00021
-2026-04-17T00:00:00Z,2026-04-18T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00022
-2026-04-18T00:00:00Z,2026-04-19T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00023
-2026-04-19T00:00:00Z,2026-04-20T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00024
-2026-04-20T00:00:00Z,2026-04-21T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00025
-2026-04-21T00:00:00Z,2026-04-22T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00026
-2026-04-22T00:00:00Z,2026-04-23T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00027
-2026-04-23T00:00:00Z,2026-04-24T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00028
-2026-04-24T00:00:00Z,2026-04-25T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00029
-2026-04-25T00:00:00Z,2026-04-26T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00030
-2026-04-26T00:00:00Z,2026-04-27T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00031
-2026-04-27T00:00:00Z,2026-04-28T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00032
-2026-04-28T00:00:00Z,2026-04-29T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00033
-2026-04-29T00:00:00Z,2026-04-30T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00034
-2026-04-30T00:00:00Z,2026-05-01T00:00:00Z,12.37,12.37,USD,Observability Platform,Management and Governance,res-observe-01,{},focus_2026-04_00035
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,285.46,285.46,USD,Object Storage,Storage,res-storage-01,{},focus_2026-04_00036
-2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,371.09,371.09,USD,Shared Compute,Compute,res-shared-01,{},focus_2026-04_00037
+ChargePeriodStart,ChargePeriodEnd,BilledCost,EffectiveCost,BillingCurrency,ServiceName,ServiceCategory,ResourceId,Tags,line_id,ListCost,ContractedCost,ChargeCategory,CommitmentDiscountCategory,CommitmentDiscountType,RegionId
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,43.72,43.72,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-02_00001,48.09,43.72,Usage,,,eu-west-1
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,18.74,18.74,USD,Dedicated Network Egress,Networking,res-egress-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-02_00002,20.61,18.74,Usage,,,us-west-2
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,316.27,316.27,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-02_00003,347.89,316.27,Usage,,,eu-west-1
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,135.55,135.55,USD,Dedicated Network Egress,Networking,res-egress-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-02_00004,149.10,135.55,Usage,,,us-west-2
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,571.28,571.28,USD,Managed API Gateway,Networking,res-gateway-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""enterprise""}",focus_2026-02_00005,628.40,571.28,Usage,,,eu-west-1
+2026-02-01T00:00:00Z,2026-02-02T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00006,16.54,15.04,Usage,,,eu-west-1
+2026-02-02T00:00:00Z,2026-02-03T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00007,16.54,15.04,Usage,,,eu-west-1
+2026-02-03T00:00:00Z,2026-02-04T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00008,16.54,15.04,Usage,,,eu-west-1
+2026-02-04T00:00:00Z,2026-02-05T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00009,16.54,15.04,Usage,,,eu-west-1
+2026-02-05T00:00:00Z,2026-02-06T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00010,16.54,15.04,Usage,,,eu-west-1
+2026-02-06T00:00:00Z,2026-02-07T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00011,16.54,15.04,Usage,,,eu-west-1
+2026-02-07T00:00:00Z,2026-02-08T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00012,16.54,15.04,Usage,,,eu-west-1
+2026-02-08T00:00:00Z,2026-02-09T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00013,16.54,15.04,Usage,,,eu-west-1
+2026-02-09T00:00:00Z,2026-02-10T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00014,16.54,15.04,Usage,,,eu-west-1
+2026-02-10T00:00:00Z,2026-02-11T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00015,16.54,15.04,Usage,,,eu-west-1
+2026-02-11T00:00:00Z,2026-02-12T00:00:00Z,15.04,15.04,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00016,16.54,15.04,Usage,,,eu-west-1
+2026-02-12T00:00:00Z,2026-02-13T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00017,16.53,15.03,Usage,,,eu-west-1
+2026-02-13T00:00:00Z,2026-02-14T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00018,16.53,15.03,Usage,,,eu-west-1
+2026-02-14T00:00:00Z,2026-02-15T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00019,16.53,15.03,Usage,,,eu-west-1
+2026-02-15T00:00:00Z,2026-02-16T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00020,16.53,15.03,Usage,,,eu-west-1
+2026-02-16T00:00:00Z,2026-02-17T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00021,16.53,15.03,Usage,,,eu-west-1
+2026-02-17T00:00:00Z,2026-02-18T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00022,16.53,15.03,Usage,,,eu-west-1
+2026-02-18T00:00:00Z,2026-02-19T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00023,16.53,15.03,Usage,,,eu-west-1
+2026-02-19T00:00:00Z,2026-02-20T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00024,16.53,15.03,Usage,,,eu-west-1
+2026-02-20T00:00:00Z,2026-02-21T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00025,16.53,15.03,Usage,,,eu-west-1
+2026-02-21T00:00:00Z,2026-02-22T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00026,16.53,15.03,Usage,,,eu-west-1
+2026-02-22T00:00:00Z,2026-02-23T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00027,16.53,15.03,Usage,,,eu-west-1
+2026-02-23T00:00:00Z,2026-02-24T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00028,16.53,15.03,Usage,,,eu-west-1
+2026-02-24T00:00:00Z,2026-02-25T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00029,16.53,15.03,Usage,,,eu-west-1
+2026-02-25T00:00:00Z,2026-02-26T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00030,16.53,15.03,Usage,,,eu-west-1
+2026-02-26T00:00:00Z,2026-02-27T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00031,16.53,15.03,Usage,,,eu-west-1
+2026-02-27T00:00:00Z,2026-02-28T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00032,16.53,15.03,Usage,,,eu-west-1
+2026-02-28T00:00:00Z,2026-03-01T00:00:00Z,15.03,15.03,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-02_00033,16.53,15.03,Usage,,,eu-west-1
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,270.61,270.61,USD,Object Storage,Storage,res-storage-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-02_00034,297.67,270.61,Usage,,,us-east-1
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,375.84,375.84,USD,Shared Compute,Compute,res-shared-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-02_00035,413.42,375.84,Usage,,,us-west-2
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,41.75,41.75,USD,Unattributed Compute,Compute,res-orphan-01,{},focus_2026-02_00036,45.92,41.75,Usage,,,us-east-1
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,33.40,33.40,USD,Unattributed Storage,Storage,res-orphan-02,{},focus_2026-02_00037,36.74,33.40,Usage,,,us-west-2
+2026-02-01T00:00:00Z,2026-03-01T00:00:00Z,33.40,33.40,USD,Unattributed Data Transfer,Networking,res-orphan-03,{},focus_2026-02_00038,36.74,33.40,Usage,,,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,0.00,14.77,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00001,21.65,19.69,Usage,Spend,Savings Plan,eu-west-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,22.17,22.17,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00002,24.38,22.17,Usage,,,eu-west-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,15.83,15.83,USD,Dedicated Network Egress,Networking,res-egress-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00003,17.41,15.83,Usage,,,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,0.00,123.45,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00004,181.06,164.60,Usage,Spend,Savings Plan,eu-west-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,185.18,185.18,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00005,203.69,185.18,Usage,,,eu-west-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,132.27,132.27,USD,Dedicated Network Egress,Networking,res-egress-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00006,145.49,132.27,Usage,,,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,500.81,500.81,USD,Managed API Gateway,Networking,res-gateway-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""enterprise""}",focus_2026-03_00007,550.89,500.81,Usage,,,eu-west-1
+2026-03-01T00:00:00Z,2026-03-02T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00008,12.96,11.79,Usage,,,eu-west-1
+2026-03-02T00:00:00Z,2026-03-03T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00009,12.96,11.79,Usage,,,eu-west-1
+2026-03-03T00:00:00Z,2026-03-04T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00010,12.96,11.79,Usage,,,eu-west-1
+2026-03-04T00:00:00Z,2026-03-05T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00011,12.96,11.79,Usage,,,eu-west-1
+2026-03-05T00:00:00Z,2026-03-06T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00012,12.96,11.79,Usage,,,eu-west-1
+2026-03-06T00:00:00Z,2026-03-07T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00013,12.96,11.79,Usage,,,eu-west-1
+2026-03-07T00:00:00Z,2026-03-08T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00014,12.96,11.79,Usage,,,eu-west-1
+2026-03-08T00:00:00Z,2026-03-09T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00015,12.96,11.79,Usage,,,eu-west-1
+2026-03-09T00:00:00Z,2026-03-10T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00016,12.96,11.79,Usage,,,eu-west-1
+2026-03-10T00:00:00Z,2026-03-11T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00017,12.96,11.79,Usage,,,eu-west-1
+2026-03-11T00:00:00Z,2026-03-12T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00018,12.96,11.79,Usage,,,eu-west-1
+2026-03-12T00:00:00Z,2026-03-13T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00019,12.96,11.79,Usage,,,eu-west-1
+2026-03-13T00:00:00Z,2026-03-14T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00020,12.96,11.79,Usage,,,eu-west-1
+2026-03-14T00:00:00Z,2026-03-15T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00021,12.96,11.79,Usage,,,eu-west-1
+2026-03-15T00:00:00Z,2026-03-16T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00022,12.96,11.79,Usage,,,eu-west-1
+2026-03-16T00:00:00Z,2026-03-17T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00023,12.96,11.79,Usage,,,eu-west-1
+2026-03-17T00:00:00Z,2026-03-18T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00024,12.96,11.79,Usage,,,eu-west-1
+2026-03-18T00:00:00Z,2026-03-19T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00025,12.96,11.79,Usage,,,eu-west-1
+2026-03-19T00:00:00Z,2026-03-20T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00026,12.96,11.79,Usage,,,eu-west-1
+2026-03-20T00:00:00Z,2026-03-21T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00027,12.96,11.79,Usage,,,eu-west-1
+2026-03-21T00:00:00Z,2026-03-22T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00028,12.96,11.79,Usage,,,eu-west-1
+2026-03-22T00:00:00Z,2026-03-23T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00029,12.96,11.79,Usage,,,eu-west-1
+2026-03-23T00:00:00Z,2026-03-24T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00030,12.96,11.79,Usage,,,eu-west-1
+2026-03-24T00:00:00Z,2026-03-25T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00031,12.96,11.79,Usage,,,eu-west-1
+2026-03-25T00:00:00Z,2026-03-26T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00032,12.96,11.79,Usage,,,eu-west-1
+2026-03-26T00:00:00Z,2026-03-27T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00033,12.96,11.79,Usage,,,eu-west-1
+2026-03-27T00:00:00Z,2026-03-28T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00034,12.96,11.79,Usage,,,eu-west-1
+2026-03-28T00:00:00Z,2026-03-29T00:00:00Z,11.79,11.79,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00035,12.96,11.79,Usage,,,eu-west-1
+2026-03-29T00:00:00Z,2026-03-30T00:00:00Z,11.78,11.78,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00036,12.95,11.78,Usage,,,eu-west-1
+2026-03-30T00:00:00Z,2026-03-31T00:00:00Z,11.78,11.78,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00037,12.95,11.78,Usage,,,eu-west-1
+2026-03-31T00:00:00Z,2026-04-01T00:00:00Z,11.78,11.78,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-03_00038,12.95,11.78,Usage,,,eu-west-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,243.64,243.64,USD,Object Storage,Storage,res-storage-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00039,268.00,243.64,Usage,,,us-east-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,0.00,151.60,USD,Shared Compute,Compute,res-shared-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00040,222.34,202.13,Usage,Spend,Savings Plan,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,227.40,227.40,USD,Shared Compute,Compute,res-shared-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-03_00041,250.14,227.40,Usage,,,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,45.65,45.65,USD,Unattributed Compute,Compute,res-orphan-01,{},focus_2026-03_00042,50.21,45.65,Usage,,,us-east-1
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,32.61,32.61,USD,Unattributed Storage,Storage,res-orphan-02,{},focus_2026-03_00043,35.87,32.61,Usage,,,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,26.09,26.09,USD,Unattributed Data Transfer,Networking,res-orphan-03,{},focus_2026-03_00044,28.69,26.09,Usage,,,us-west-2
+2026-03-01T00:00:00Z,2026-04-01T00:00:00Z,386.13,96.31,USD,Compute Savings Plan,Compute,res-commit-01,"{""tenant"":""shared"",""product"":""api"",""team"":""self_serve""}",focus_2026-03_00045,105.94,96.31,Purchase,Spend,Savings Plan,eu-west-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,0.00,24.38,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00001,35.75,32.50,Usage,Spend,Savings Plan,eu-west-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,36.58,36.58,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00002,40.23,36.58,Usage,,,eu-west-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,26.13,26.13,USD,Dedicated Network Egress,Networking,res-egress-acct_0009,"{""tenant"":""acct_0009"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00003,28.74,26.13,Usage,,,us-west-2
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,0.00,123.72,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00004,181.45,164.96,Usage,Spend,Savings Plan,eu-west-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,185.60,185.60,USD,Dedicated Inference Cluster,Compute,res-dedicated-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00005,204.16,185.60,Usage,,,eu-west-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,132.57,132.57,USD,Dedicated Network Egress,Networking,res-egress-acct_0010,"{""tenant"":""acct_0010"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00006,145.82,132.57,Usage,,,us-west-2
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,502.60,502.60,USD,Managed API Gateway,Networking,res-gateway-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""enterprise""}",focus_2026-04_00007,552.86,502.60,Usage,,,eu-west-1
+2026-04-01T00:00:00Z,2026-04-02T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00008,12.28,11.17,Usage,,,eu-west-1
+2026-04-02T00:00:00Z,2026-04-03T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00009,12.28,11.17,Usage,,,eu-west-1
+2026-04-03T00:00:00Z,2026-04-04T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00010,12.28,11.17,Usage,,,eu-west-1
+2026-04-04T00:00:00Z,2026-04-05T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00011,12.28,11.17,Usage,,,eu-west-1
+2026-04-05T00:00:00Z,2026-04-06T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00012,12.28,11.17,Usage,,,eu-west-1
+2026-04-06T00:00:00Z,2026-04-07T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00013,12.28,11.17,Usage,,,eu-west-1
+2026-04-07T00:00:00Z,2026-04-08T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00014,12.28,11.17,Usage,,,eu-west-1
+2026-04-08T00:00:00Z,2026-04-09T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00015,12.28,11.17,Usage,,,eu-west-1
+2026-04-09T00:00:00Z,2026-04-10T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00016,12.28,11.17,Usage,,,eu-west-1
+2026-04-10T00:00:00Z,2026-04-11T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00017,12.28,11.17,Usage,,,eu-west-1
+2026-04-11T00:00:00Z,2026-04-12T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00018,12.28,11.17,Usage,,,eu-west-1
+2026-04-12T00:00:00Z,2026-04-13T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00019,12.28,11.17,Usage,,,eu-west-1
+2026-04-13T00:00:00Z,2026-04-14T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00020,12.28,11.17,Usage,,,eu-west-1
+2026-04-14T00:00:00Z,2026-04-15T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00021,12.28,11.17,Usage,,,eu-west-1
+2026-04-15T00:00:00Z,2026-04-16T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00022,12.28,11.17,Usage,,,eu-west-1
+2026-04-16T00:00:00Z,2026-04-17T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00023,12.28,11.17,Usage,,,eu-west-1
+2026-04-17T00:00:00Z,2026-04-18T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00024,12.28,11.17,Usage,,,eu-west-1
+2026-04-18T00:00:00Z,2026-04-19T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00025,12.28,11.17,Usage,,,eu-west-1
+2026-04-19T00:00:00Z,2026-04-20T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00026,12.28,11.17,Usage,,,eu-west-1
+2026-04-20T00:00:00Z,2026-04-21T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00027,12.28,11.17,Usage,,,eu-west-1
+2026-04-21T00:00:00Z,2026-04-22T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00028,12.28,11.17,Usage,,,eu-west-1
+2026-04-22T00:00:00Z,2026-04-23T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00029,12.28,11.17,Usage,,,eu-west-1
+2026-04-23T00:00:00Z,2026-04-24T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00030,12.28,11.17,Usage,,,eu-west-1
+2026-04-24T00:00:00Z,2026-04-25T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00031,12.28,11.17,Usage,,,eu-west-1
+2026-04-25T00:00:00Z,2026-04-26T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00032,12.28,11.17,Usage,,,eu-west-1
+2026-04-26T00:00:00Z,2026-04-27T00:00:00Z,11.17,11.17,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00033,12.28,11.17,Usage,,,eu-west-1
+2026-04-27T00:00:00Z,2026-04-28T00:00:00Z,11.16,11.16,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00034,12.27,11.16,Usage,,,eu-west-1
+2026-04-28T00:00:00Z,2026-04-29T00:00:00Z,11.16,11.16,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00035,12.27,11.16,Usage,,,eu-west-1
+2026-04-29T00:00:00Z,2026-04-30T00:00:00Z,11.16,11.16,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00036,12.27,11.16,Usage,,,eu-west-1
+2026-04-30T00:00:00Z,2026-05-01T00:00:00Z,11.16,11.16,USD,Observability Platform,Management and Governance,res-observe-01,"{""tenant"":""shared"",""product"":""api"",""team"":""growth""}",focus_2026-04_00037,12.27,11.16,Usage,,,eu-west-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,257.74,257.74,USD,Object Storage,Storage,res-storage-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00038,283.51,257.74,Usage,,,us-east-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,0.00,134.02,USD,Shared Compute,Compute,res-shared-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00039,196.55,178.69,Usage,Spend,Savings Plan,us-west-2
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,201.04,201.04,USD,Shared Compute,Compute,res-shared-01,"{""tenant"":""shared"",""product"":""dedicated"",""team"":""self_serve""}",focus_2026-04_00040,221.14,201.04,Usage,,,us-west-2
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,44.20,44.20,USD,Unattributed Compute,Compute,res-orphan-01,{},focus_2026-04_00041,48.62,44.20,Usage,,,us-east-1
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,29.46,29.46,USD,Unattributed Storage,Storage,res-orphan-02,{},focus_2026-04_00042,32.40,29.46,Usage,,,us-west-2
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,29.47,29.47,USD,Unattributed Data Transfer,Networking,res-orphan-03,{},focus_2026-04_00043,32.41,29.47,Usage,,,us-west-2
+2026-04-01T00:00:00Z,2026-05-01T00:00:00Z,332.82,50.70,USD,Compute Savings Plan,Compute,res-commit-01,"{""tenant"":""shared"",""product"":""api"",""team"":""self_serve""}",focus_2026-04_00044,55.77,50.70,Purchase,Spend,Savings Plan,eu-west-1

@@ -69,7 +69,7 @@
         "id": "CTL-CUTOFF",
         "violating_rows": 1,
         "detail": [
-          "cp/2026-03/acct_0003/revenue: month 2026-03: invoice line inv_2026-03_acct_0003_04 has service period 2026-03 but gl period 2026-04; rows 137f13315ae6df74d4992ae2ddee39f8"
+          "cp/2026-03/acct_0003/revenue: month 2026-03: invoice line inv_2026-03_acct_0003_04 has service period 2026-03 but gl period 2026-04; rows 8e19ab7d27306b81e02394d79531cede"
         ]
       }
     ]

@@ -25,3 +25,7 @@ drivers:
 planted_band_pts: 5
 unplanted_band_pts: 3
 decoy_band_pts: 2
+
+# Tag coverage: the largest share of a month's usage effective cost, in whole percent, that may
+# carry no tenant tag. The close stops above it.
+tag_coverage_max_untagged_pct: 10

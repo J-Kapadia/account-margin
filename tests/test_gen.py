@@ -19,6 +19,7 @@ from hypothesis import given, strategies as st
 
 from conftest import ROOT, margin, shared_dir
 from margin import gen_config, gen_plan
+from margin.errors import MarginError
 from margin import truth_reference as ref
 
 PRICES = ROOT / "tests" / "fixtures" / "model_prices.csv"
@@ -49,6 +50,10 @@ def derive(books: Path, config: Path = CONFIG) -> dict[str, ref.MonthResult]:
     return ref.recompute_from_books(
         books, PRICES, RATES, config_.allocation.rules, config_.policy.floor_pct, drivers
     )
+
+
+def cents(amount: str) -> int:
+    return int(Decimal(amount) * 100)
 
 
 def points(c: ref.Components) -> list[Fraction]:
@@ -295,6 +300,9 @@ def test_gl_totals_equal_the_component_sums_for_all_12_months(full):
     provider: dict[str, int] = {}
     for r in read_csv(books / "provider_invoices.csv"):
         provider[r["month"]] = provider.get(r["month"], 0) + int(r["amount_cents"])
+    effective: dict[str, int] = {}
+    for r in read_csv(books / "cloud_focus.csv"):
+        effective[r["ChargePeriodStart"][:7]] = effective.get(r["ChargePeriodStart"][:7], 0) + cents(r["EffectiveCost"])
     tickets: dict[str, int] = {}
     rates = ref.read_rates(RATES)
     for r in read_csv(books / "support_tickets.csv"):
@@ -304,7 +312,7 @@ def test_gl_totals_equal_the_component_sums_for_all_12_months(full):
         comps = res.comps.values()
         assert sum(c.revenue for c in comps) == gl[(month, "4000")] + gl[(month, "4100")] + gl[(month, "4900")]
         assert sum(c.inference for c in comps) == gl[(month, "5100")] == provider[month]
-        assert sum(c.direct for c in comps) + res.pool_cents == gl[(month, "5200")]
+        assert sum(c.direct for c in comps) + res.pool_cents == gl[(month, "5200")] == effective[month]
         assert sum(c.support for c in comps) == gl[(month, "5300")] == tickets[month]
         for rule in gen_config.KNOWN_RULES:
             assert sum(c.shared[rule] for c in comps) == res.pool_cents
@@ -345,22 +353,85 @@ def test_truth_cost_components_match_the_books(full):
 def test_focus_rows_are_two_decimal_usd_within_one_month(full):
     rows = read_csv(full / "books" / "cloud_focus.csv")
     accounts = {r["account_id"] for r in read_csv(full / "books" / "accounts.csv")}
-    tagged = untagged = 0
+    tagged = untagged = shared = 0
     for r in rows:
-        assert r["BillingCurrency"] == "USD" and r["BilledCost"] == r["EffectiveCost"]
-        assert len(r["EffectiveCost"].split(".")[1]) == 2
+        assert r["BillingCurrency"] == "USD"
+        for column in ("BilledCost", "EffectiveCost", "ListCost", "ContractedCost"):
+            assert len(r[column].split(".")[1]) == 2
         start, end = r["ChargePeriodStart"], r["ChargePeriodEnd"]
         assert start.endswith("Z") and end.endswith("Z") and start[:7] <= end[:7]
         assert end <= (f"{int(start[:4]) + (start[5:7] == '12'):04d}-"
                        f"{1 if start[5:7] == '12' else int(start[5:7]) + 1:02d}-01T00:00:00Z")
-        tenant = json.loads(r["Tags"]).get("tenant")
-        if tenant:
-            assert tenant in accounts
+        assert r["RegionId"]
+        tags = json.loads(r["Tags"])
+        if tags:
+            assert tags["product"] in ("api", "batch", "dedicated")
+            assert tags["team"] in ("enterprise", "growth", "self_serve")
+        tenant = tags.get("tenant")
+        if tenant == "shared":
+            shared += 1
+        elif tenant:
+            assert tenant in accounts and tags["product"] == "dedicated"
             tagged += 1
         else:
+            assert tags == {}
             untagged += 1
-    assert tagged and untagged
+    assert tagged and untagged and shared
     assert len({r["line_id"] for r in rows}) == len(rows)
+
+
+def test_billed_equals_effective_per_month_and_commitment_rows_follow_the_window(full):
+    rows = read_csv(full / "books" / "cloud_focus.csv")
+    months = sorted({r["ChargePeriodStart"][:7] for r in rows})
+    assert len(months) == 12
+    for month in months:
+        in_month = [r for r in rows if r["ChargePeriodStart"].startswith(month)]
+        assert sum(cents(r["BilledCost"]) for r in in_month) == sum(cents(r["EffectiveCost"]) for r in in_month)
+        purchases = [r for r in in_month if r["ChargeCategory"] == "Purchase"]
+        covered = [r for r in in_month if r["ChargeCategory"] == "Usage" and r["CommitmentDiscountCategory"]]
+        if month == months[0]:
+            assert not purchases and not covered
+            continue
+        assert len(purchases) == 1 and covered
+        assert cents(purchases[0]["EffectiveCost"]) > 0
+        assert json.loads(purchases[0]["Tags"])["tenant"] == "shared"
+        for r in covered:
+            assert cents(r["BilledCost"]) == 0 and cents(r["ContractedCost"]) > cents(r["EffectiveCost"])
+        for r in in_month:
+            assert cents(r["ListCost"]) >= cents(r["ContractedCost"]) >= cents(r["EffectiveCost"])
+
+
+def test_the_planted_untagged_share_is_two_points_below_the_threshold_every_month(full, policy):
+    rows = read_csv(full / "books" / "cloud_focus.csv")
+    for month in sorted({r["ChargePeriodStart"][:7] for r in rows}):
+        usage = [r for r in rows if r["ChargePeriodStart"].startswith(month) and r["ChargeCategory"] == "Usage"]
+        untagged = sum(cents(r["EffectiveCost"]) for r in usage if not json.loads(r["Tags"]))
+        total = sum(cents(r["EffectiveCost"]) for r in usage)
+        assert untagged > 0
+        assert untagged * 100 <= (policy.tag_coverage_max_untagged_pct - 2) * total, month
+
+
+def test_every_invoice_line_names_one_of_the_three_products(full):
+    lines = read_csv(full / "books" / "invoices.csv")
+    assert {r["product"] for r in lines} == {"api", "batch", "dedicated"}
+    by_account: dict[str, set[str]] = {}
+    for r in lines:
+        by_account.setdefault(r["account_id"], set()).add(r["product"])
+    assert any(len(products) > 1 for products in by_account.values())
+
+
+def test_load_policy_requires_the_untagged_threshold_as_an_integer(tmp_path):
+    text = (CONFIG / "policy.yaml").read_text()
+    assert gen_config.load_policy(CONFIG).tag_coverage_max_untagged_pct == 10
+    for name, body in (("missing", text.replace("tag_coverage_max_untagged_pct: 10", "")),
+                       ("fraction", text.replace("tag_coverage_max_untagged_pct: 10", "tag_coverage_max_untagged_pct: 7.5"))):
+        config = tmp_path / name
+        config.mkdir()
+        (config / "policy.yaml").write_text(body)
+        (config / "allocation.yaml").write_text((CONFIG / "allocation.yaml").read_text())
+        with pytest.raises(MarginError) as err:
+            gen_config.load_policy(config)
+        assert err.value.exit_code == 2 and "tag_coverage_max_untagged_pct" in str(err.value)
 
 
 def test_tickets_have_tiers_dates_and_some_are_open(full):

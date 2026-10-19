@@ -69,14 +69,14 @@
         "id": "CTL-SIGN",
         "violating_rows": 1,
         "detail": [
-          "cp/2026-03/acct_0002/revenue: month 2026-03: credit line inv_2026-03_acct_0002_05 is 10603 cents, a credit must be <= 0; rows cd395f116a7ffc5acc990a8ccca19674"
+          "cp/2026-03/acct_0002/revenue: month 2026-03: credit line inv_2026-03_acct_0002_05 is 10603 cents, a credit must be <= 0; rows f939d7ad0b0ed60b0d83897474daee16"
         ]
       },
       {
         "id": "CTL-TIE-REV",
         "violating_rows": 1,
         "detail": [
-          "pnl/2026-03/4900: GL 4900: ledger -39603 cents, accounts -18397 cents, difference 21206 cents; rows 6e74e8421ba13be48ffbf20fc4af02b5,b911300bffdf6e69d06b1184730ed260,cd395f116a7ffc5acc990a8ccca19674"
+          "pnl/2026-03/4900: GL 4900: ledger -39603 cents, accounts -18397 cents, difference 21206 cents; rows 6e74e8421ba13be48ffbf20fc4af02b5,3250aae5ec34f61e726aad4dbc5cd54f,f939d7ad0b0ed60b0d83897474daee16"
         ]
       }
     ]
