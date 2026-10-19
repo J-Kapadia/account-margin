@@ -1,4 +1,4 @@
-"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement, doctor, import-focus.
+"""The `margin` command line: gen, close, rollforward, status, explain, memo, agreement, doctor, import-focus, serve.
 
 Every command takes the path flags and `--json`; an error becomes a failure
 envelope and the exit code of the error contract (see errors.py).
@@ -23,6 +23,7 @@ from . import memo_check as memo_check_mod
 from . import rollforward as rollforward_mod
 from . import scenario_check as scenario_check_mod
 from . import scenario_run as scenario_mod
+from . import serve as serve_mod
 from . import signoff as signoff_mod
 from . import status as status_mod
 from .errors import (
@@ -390,3 +391,20 @@ def signoff(paths: Paths, signer: str, role: str):
     path = signoff_mod.write_for(paths.config, signer=signer, role=role)
     rule, policy = signoff_mod.config_hashes(paths.config)
     return {"signoff": str(path), "rule_sha256": rule, "policy_sha256": policy}, [f"wrote {path}"]
+
+
+@main.command()
+@click.option("--host", default="0.0.0.0", show_default=True, help="Address to listen on.")
+@click.option("--port", type=click.IntRange(0, 65535), default=None,
+              help="Port to listen on (PORT, else 8000).")
+@click.option("--json", "as_json", is_flag=True, help="Machine output on stdout.")
+def serve(host: str, port: int | None, as_json: bool):
+    """Serve one page over the pre-closed mini books (MARGIN_SERVE_ROOT): run the close, plant an error."""
+    def run():
+        number = serve_mod.resolve_port(port)
+        root = serve_mod.serve_root()
+        serve_mod.require_built(root)
+        serve_mod.run(host, number, root)
+        return {}, []
+
+    return _guard(as_json, run)

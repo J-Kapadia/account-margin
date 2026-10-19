@@ -1,0 +1,131 @@
+{#- The served page: the months with state and hash, the three actions, the log panel. Every value is
+    escaped; the page loads nothing from outside and its one script is inline. -#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account margin close</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; background: #fff; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .25rem .5rem; border-bottom: 1px solid #ccc; vertical-align: top; }
+  td.hash { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 8rem; padding: .5rem; border: 1px solid #ccc; }
+  button, select { font: inherit; padding: .25rem .75rem; margin: .25rem .25rem .25rem 0; }
+  .notice { font-weight: bold; }
+  a { color: #0b4f9c; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } th, td, pre { border-color: #444; } a { color: #8ab4f8; } }
+</style>
+</head>
+<body>
+<h1>Account margin close</h1>
+<p>One close over the synthetic <code>mini</code> books. Run the next month's close, plant an error to watch a control name it, or reset the books.</p>
+
+{% if notice %}<p class="notice" data-field="notice">{{ notice }}</p>
+{% endif %}
+<section id="months-panel">
+<h2>Months</h2>
+<table id="months">
+<thead><tr><th>Month</th><th>State</th><th>Result hash</th></tr></thead>
+<tbody>
+{% for m in months %}<tr><td data-field="month">{{ m.month }}</td><td data-field="status">{{ m.status }}</td><td class="hash" data-field="result_hash">{{ m.result_hash or "-" }}</td></tr>
+{% endfor %}</tbody>
+</table>
+</section>
+
+<section id="actions">
+<h2>Actions</h2>
+<div id="close-control">
+{% if next_month %}<button type="button" id="close-button" data-post="/close">Run the close for {{ next_month }}</button>
+{% else %}<button type="button" id="close-button" data-post="/close" disabled>Run the close</button>
+{% if all_closed %}<span data-field="all-closed">{{ all_closed_text }}</span>
+{% endif %}{% endif %}
+</div>
+<div>
+<label for="error">Plant an error</label>
+<select id="error"{% if notice %} disabled{% endif %}>
+{% for name in errors %}<option value="{{ name }}">{{ name }}</option>
+{% endfor %}</select>
+<button type="button" id="inject-button" data-post-from="error"{% if notice %} disabled{% endif %}>Plant it</button>
+</div>
+<div>
+<button type="button" id="reset-button" data-post="/reset"{% if notice %} disabled{% endif %}>Reset</button>
+</div>
+</section>
+
+{% if memo_month %}<p><a id="memo-link" href="/site/{{ memo_month }}/index.html">Memo for {{ memo_month }}</a></p>
+{% endif %}
+<section id="log-panel">
+<h2>Log</h2>
+<pre id="log" aria-live="polite"></pre>
+</section>
+
+<script>
+(function () {
+  var log = document.getElementById("log");
+  var busy = false;
+
+  function append(line) {
+    log.textContent += line + "\n";
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // The months table and the close button follow the warehouse: take them from a fresh copy of the page.
+  function refresh() {
+    return fetch("/", { cache: "no-store" }).then(function (res) { return res.text(); }).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      ["months-panel", "close-control"].forEach(function (id) {
+        var fresh = doc.getElementById(id), old = document.getElementById(id);
+        if (fresh && old) { old.innerHTML = fresh.innerHTML; }
+      });
+    }).catch(function () {});
+  }
+
+  // Read the response body as it streams, one line at a time.
+  function post(path) {
+    if (busy) { return; }
+    busy = true;
+    log.textContent = "";
+    var pending = "";
+    fetch(path, { method: "POST" }).then(function (res) {
+      if (!res.ok) {
+        return res.text().then(function (text) {
+          var message = text;
+          try { message = JSON.parse(text).message || text; } catch (e) {}
+          append(message);
+        });
+      }
+      var reader = res.body.getReader(), decoder = new TextDecoder();
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) {
+            if (pending) { append(pending); }
+            return;
+          }
+          pending += decoder.decode(chunk.value, { stream: true });
+          var lines = pending.split("\n");
+          pending = lines.pop();
+          lines.forEach(append);
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function (err) {
+      append("request failed: " + err);
+    }).then(function () {
+      busy = false;
+      return refresh();
+    });
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("button");
+    if (!button || button.disabled) { return; }
+    if (button.dataset.post) { post(button.dataset.post); }
+    else if (button.dataset.postFrom) { post("/inject/" + encodeURIComponent(document.getElementById(button.dataset.postFrom).value)); }
+  });
+})();
+</script>
+</body>
+</html>
