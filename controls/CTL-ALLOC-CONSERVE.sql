@@ -2,20 +2,26 @@
 -- violating rows of :month:
 --   * a pool with cents and no account with weight (shared cloud under a rule, or a provider
 --     invoice no account used), a usage model with no provider invoice, and a tenant tag that
---     names no known account (int_pool_violations; no fallback to another rule);
+--     names no known account, the reserved value `shared` being none (int_pool_violations; no
+--     fallback to another rule);
 --   * a pool with an eligible weight whose allocation does not sum to its cents;
 --   * a FOCUS charge (same resource and charge period) that is both tagged and untagged, so it
 --     would be counted as direct and as shared cost.
 with m as (select cast($month as date) as month),
+-- The pool rows are those with no tenant tag, the reserved tag `shared`, and unused commitments.
 untagged as (
     select c.*
-    from raw.cloud_focus c, m
-    where c._month = m.month and nullif(json_extract_string(nullif(c."Tags", ''), '$.tenant'), '') is null
+    from raw.cloud_focus c
+    join m on c._month = m.month
+    join stg.stg_cloud_focus s on s._row_hash = c._row_hash
+    where s.tag_class <> 'direct' or s.is_unused_commitment
 ),
 tagged as (
-    select c.*, json_extract_string(nullif(c."Tags", ''), '$.tenant') as tenant
-    from raw.cloud_focus c, m
-    where c._month = m.month and nullif(json_extract_string(nullif(c."Tags", ''), '$.tenant'), '') is not null
+    select c.*, s.tenant
+    from raw.cloud_focus c
+    join m on c._month = m.month
+    join stg.stg_cloud_focus s on s._row_hash = c._row_hash
+    where s.tag_class = 'direct' and not s.is_unused_commitment
 )
 select
     case v.kind

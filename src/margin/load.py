@@ -35,8 +35,19 @@ OPTIONAL_COLUMNS = {
     "cloud_focus": [
         "ChargePeriodStart", "ChargePeriodEnd", "BilledCost", "EffectiveCost", "BillingCurrency",
         "ServiceName", "ServiceCategory", "ResourceId", "Tags", "line_id",
+        "ListCost", "ContractedCost", "ChargeCategory", "CommitmentDiscountCategory",
+        "CommitmentDiscountType", "RegionId",
     ],
     "support_tickets": ["ticket_id", "account_id", "opened_date", "closed_date", "handle_minutes", "tier"],
+}
+# Columns a file may leave out whole: a book written before they existed. They are NULL in
+# `raw.*` when absent, and `_row_hash` covers only the columns the file has, so an older book
+# keeps the hashes it always had.
+ABSENT_OK = {
+    "cloud_focus": [
+        "ListCost", "ContractedCost", "ChargeCategory", "CommitmentDiscountCategory",
+        "CommitmentDiscountType", "RegionId",
+    ],
 }
 REFERENCE_DIR = ROOT / "data" / "reference"
 PRICES_CSV = "model_prices.csv"
@@ -92,11 +103,17 @@ def _stage(con: duckdb.DuckDBPyConnection, books: Path, table: str, run_id: str)
         return cols
     cols = _columns(con, csv_path)
     fields = " || chr(31) || ".join(f'coalesce("{c}", chr(0))' for c in cols)
+    padding = [c for c in ABSENT_OK.get(table, []) if c not in cols]
+    # A present optional column keeps an empty cell as empty text, so a control can tell it from
+    # a column the file does not have (NULL); the hash below still reads the cell as parsed.
+    present = {c for c in ABSENT_OK.get(table, []) if c in cols}
+    select_cols = ", ".join(f'coalesce("{c}", \'\') AS "{c}"' if c in present else f'"{c}"' for c in cols)
     month_sql = f"CAST(({month_expr}) || '-01' AS DATE)" if month_expr else "CAST(NULL AS DATE)"
     con.execute(
         f"""
         CREATE OR REPLACE TEMP TABLE stage_{table} AS
-        SELECT {", ".join(f'"{c}"' for c in cols)},
+        SELECT {select_cols},
+               {"".join(f'CAST(NULL AS VARCHAR) AS "{c}", ' for c in padding)}
                md5('{csv_name}' || chr(31) || CAST(_ordinal AS VARCHAR) || chr(31) || {fields})
                    AS _row_hash,
                {month_sql} AS _month,
@@ -104,7 +121,7 @@ def _stage(con: duckdb.DuckDBPyConnection, books: Path, table: str, run_id: str)
         FROM (SELECT *, row_number() OVER () AS _ordinal FROM {_read_sql(csv_path)})
         """
     )
-    return cols
+    return cols + padding
 
 
 def load_months(

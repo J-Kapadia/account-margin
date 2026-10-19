@@ -1,6 +1,7 @@
 -- Pools the apportionment cannot cover, one row each, for CTL-ALLOC-CONSERVE. There is no
 -- fallback to another rule: a pool with cents and no eligible weight stays unallocated.
--- Also: a usage model with no provider invoice, and a tenant tag that names no known account.
+-- Also: a usage model with no provider invoice, and a tenant tag that names no known account
+-- (the reserved value `shared` names no account and is not one).
 -- `kind` and the key columns let the control find the source rows of each violation.
 select s.month, s.rule, 'shared cloud' as pool, s.pool_cents,
        'pool has cents and no account with weight under ' || s.rule as detail,
@@ -40,5 +41,6 @@ union all
 select c.month, null, 'cloud direct ' || c.tenant, cast(0 as bigint),
        'tenant tag names an unknown account',
        'unknown_tenant', null, null, c.tenant
-from (select distinct month, tenant from {{ ref('stg_cloud_focus') }} where tenant is not null) c
+from (select distinct month, tenant from {{ ref('stg_cloud_focus') }}
+      where tag_class = 'direct' and not is_unused_commitment) c
 where c.tenant not in (select account_id from {{ ref('stg_accounts') }})

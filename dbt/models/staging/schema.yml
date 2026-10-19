@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: stg_cloud_focus
+    columns:
+      # A charge category outside the five, or an empty one, is CTL-PRICE-PIN's to name (exit 3);
+      # a failed error-severity test would surface as an internal error (exit 70) before it runs.
+      - name: charge_category
+        tests:
+          - accepted_values:
+              values: [Usage, Purchase, Tax, Credit, Adjustment]
+              config:
+                severity: warn
+      - name: tag_class
+        tests:
+          - not_null
+          - accepted_values:
+              values: [direct, shared, untagged]

@@ -1,9 +1,10 @@
--- The untagged FOCUS pool of a month, once per allowed rule.
+-- The FOCUS pool of a month, once per allowed rule: untagged rows, rows tagged with the reserved
+-- value `shared`, and unused commitment rows whatever their tag.
 select p.month, r.rule, p.pool_cents
 from (
-    select month, cast(round(sum(effective_cost) * 100) as bigint) as pool_cents
+    select month, sum(effective_cents) as pool_cents
     from {{ ref('stg_cloud_focus') }}
-    where tenant is null
+    where tag_class <> 'direct' or is_unused_commitment
     group by month
 ) p
 cross join (
