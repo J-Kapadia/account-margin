@@ -48,6 +48,12 @@ The scenario asks what happens to the accounts below the margin floor if the cos
 - `--check` proves the memo traceable after the build: `CHK-MEMO-NUM` (every number on the page resolves through `explain` to source rows whose digests re-derive) and `CHK-MEMO-QUOTE` (the memo quotes only strings registered in `data/reference/quotes.yaml`, which is empty today, so it quotes no outside source). `--crawl` adds `CHK-CRAWL`: it walks the internal links of the output directory offline and fails on a broken one.
 - The published site is built from the `mini` fixture and deployed to GitHub Pages by `.github/workflows/pages.yml`: <https://j-kapadia.github.io/account-margin/>.
 
+## The page
+
+`margin serve` serves one page over the pre-closed `mini` books (`MARGIN_SERVE_ROOT`, default `warehouse/serve`). `margin serve --static DIR` renders the same page once into `DIR` and exits without serving: the months with state and hash, a close recorded on a scratch copy of the served warehouse (its lines and the months after it), one panel per planted error with the control its committed capture names, and the memos with their explain pages under `DIR/site/`. Every link is relative and the page has no script, so the directory works at any path.
+
+The founder deploys `DIR` from their own machine to a path of the Cloudflare Pages site. This repository holds no credential and no deploy step, and there is no URL until the founder has deployed it.
+
 ## The agreement check
 
 The same number can be read four ways: `margin explain`, the model's SQL over the warehouse, the memo page, and the cached `values.csv`. `margin agreement --month M --site site` asks every number of the month through each of them and reports the rate of agreement. With `--check` any disagreement fails `CHK-AGREEMENT` (exit 3); with `--write` it stores the result in `<site>/M/agreement.json`. It runs after `memo` has built the site, since it reads the memo and `llms.txt` from there.

@@ -24,6 +24,7 @@ from . import rollforward as rollforward_mod
 from . import scenario_check as scenario_check_mod
 from . import scenario_run as scenario_mod
 from . import serve as serve_mod
+from . import serve_static as serve_static_mod
 from . import signoff as signoff_mod
 from . import status as status_mod
 from .errors import (
@@ -397,12 +398,18 @@ def signoff(paths: Paths, signer: str, role: str):
 @click.option("--host", default="0.0.0.0", show_default=True, help="Address to listen on.")
 @click.option("--port", type=click.IntRange(0, 65535), default=None,
               help="Port to listen on (PORT, else 8000).")
+@click.option("--static", "static_dir", type=click.Path(file_okay=False, path_type=Path), default=None,
+              help="Render the page once into this directory and exit, instead of serving.")
 @click.option("--json", "as_json", is_flag=True, help="Machine output on stdout.")
-def serve(host: str, port: int | None, as_json: bool):
+def serve(host: str, port: int | None, static_dir: Path | None, as_json: bool):
     """Serve one page over the pre-closed mini books (MARGIN_SERVE_ROOT): run the close, plant an error."""
     def run():
-        number = serve_mod.resolve_port(port)
         root = serve_mod.serve_root()
+        if static_dir is not None:
+            serve_mod.require_built(root)
+            result = serve_static_mod.export(root, static_dir)
+            return result, [f"wrote {static_dir}"]
+        number = serve_mod.resolve_port(port)
         serve_mod.require_built(root)
         serve_mod.run(host, number, root)
         return {}, []
