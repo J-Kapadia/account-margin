@@ -1,0 +1,77 @@
+{
+  "error": "rounding_slip",
+  "seed": 20261013,
+  "month": "2026-03",
+  "books": "tests/fixtures/books",
+  "target": {
+    "file": "gl.csv",
+    "key": "gl_2026-03_04",
+    "ordinal": 12,
+    "gl_code": "5100"
+  },
+  "close": {
+    "exit": 3,
+    "message": "control failed for 2026-03: CTL-TIE-INF",
+    "controls": [
+      {
+        "id": "CTL-SIGNOFF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-ALLOC-CONSERVE",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-CUTOFF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-PRICE-PIN",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-REV-DUP",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-SIGN",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-CLD",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-INF",
+        "status": "fail",
+        "violating_rows": 1
+      },
+      {
+        "id": "CTL-TIE-REV",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-SUP",
+        "status": "pass",
+        "violating_rows": 0
+      }
+    ],
+    "failed_controls": [
+      {
+        "id": "CTL-TIE-INF",
+        "violating_rows": 1,
+        "detail": [
+          "pnl/2026-03/5100: GL 5100: ledger 1626149 cents, accounts 1626148 cents, difference -1 cents; rows 7883940c358ae6dc33fbc340ce6c926d,a0f2670e4e255674c950e89a99337902,dfb9555299fe4ab51ed89e30f0e38332,3ca0cf2cdb7d578740f48244112bfcb6,a435fdb3d9cc5082c95be53d7b43d561,c825b6be8eb299a2250fdd932834c1c4"
+        ]
+      }
+    ]
+  }
+}
