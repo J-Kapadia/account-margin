@@ -11,7 +11,8 @@ WORKFLOWS = Path(__file__).resolve().parent.parent / ".github" / "workflows"
 POST_DEPLOY = (
     'curl -fsS "$SITE_URL/llms.txt" | grep -q fct_contribution_profit',
     'curl -fsS "$SITE_URL/2026-03/agreement.json" | python3 -c '
-    "'import json,sys; sys.exit(json.load(sys.stdin)[\"disagreement_rate\"] != 0)'",
+    "'import json,sys; from decimal import Decimal; "
+    "sys.exit(Decimal(json.load(sys.stdin)[\"disagreement_rate\"]) != 0)'",
 )
 
 
