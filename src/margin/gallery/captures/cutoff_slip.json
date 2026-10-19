@@ -1,0 +1,77 @@
+{
+  "error": "cutoff_slip",
+  "seed": 20261013,
+  "month": "2026-03",
+  "books": "tests/fixtures/books",
+  "target": {
+    "file": "invoices.csv",
+    "key": "inv_2026-03_acct_0003_04",
+    "ordinal": 53,
+    "account_id": "acct_0003"
+  },
+  "close": {
+    "exit": 3,
+    "message": "control failed for 2026-03: CTL-CUTOFF",
+    "controls": [
+      {
+        "id": "CTL-SIGNOFF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-ALLOC-CONSERVE",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-CUTOFF",
+        "status": "fail",
+        "violating_rows": 1
+      },
+      {
+        "id": "CTL-PRICE-PIN",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-REV-DUP",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-SIGN",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-CLD",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-INF",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-REV",
+        "status": "pass",
+        "violating_rows": 0
+      },
+      {
+        "id": "CTL-TIE-SUP",
+        "status": "pass",
+        "violating_rows": 0
+      }
+    ],
+    "failed_controls": [
+      {
+        "id": "CTL-CUTOFF",
+        "violating_rows": 1,
+        "detail": [
+          "cp/2026-03/acct_0003/revenue: month 2026-03: invoice line inv_2026-03_acct_0003_04 has service period 2026-03 but gl period 2026-04; rows 137f13315ae6df74d4992ae2ddee39f8"
+        ]
+      }
+    ]
+  }
+}
