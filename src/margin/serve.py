@@ -374,45 +374,62 @@ class Handler(BaseHTTPRequestHandler):
         self._get(head=True)
 
     def do_POST(self) -> None:  # noqa: N802
-        global running
         action = action_of(urlsplit(self.path).path)
         if action is None:
             self._not_found()
             return
+        root = self.server.root
+        if action[0] == "close":
+            self._act("close", lambda: self._decide_close(root))
+        elif action[0] == "inject":
+            self._act("inject", lambda: lambda emit: run_inject(action[1], emit))
+        else:
+            self._act("reset", lambda: lambda emit: run_reset(root.resolve(), emit))
+
+    def _act(self, name: str, decide) -> None:
+        """Take the action lock, let `decide` choose between a refusal and the work to stream, and answer.
+        A refusal is a `(status, payload)` pair: the lock is released before any byte of it is written, so
+        a client that has read the 409 never finds the lock still held. The work streams while the lock
+        is held and is released once the terminating chunk is flushed."""
+        global running
         if not ACTION_LOCK.acquire(blocking=False):
             label = RUNNING_LABELS.get(running or "close")
             self._json(HTTPStatus.CONFLICT, {"status": "busy", "message": f"{label} is running"})
             return
-        running = action[0]
+        running = name
         try:
-            if action[0] == "close":
-                self._close()
-            elif action[0] == "inject":
-                self._stream(lambda emit: run_inject(action[1], emit))
-            else:
-                self._stream(lambda emit: run_reset(self.server.root.resolve(), emit))
+            outcome = decide()
+        except BaseException:
+            running = None
+            ACTION_LOCK.release()
+            raise
+        if isinstance(outcome, tuple):
+            running = None
+            ACTION_LOCK.release()
+            self._json(*outcome)
+            return
+        try:
+            self._stream(outcome)
         finally:
             running = None
             ACTION_LOCK.release()
 
     # ------------------------------------------------------------------ the close stream
 
-    def _close(self) -> None:
-        """Close the next month as `margin` subprocesses, streaming their lines as chunks. Holds no
+    @staticmethod
+    def _decide_close(root: Path):
+        """The next month as `margin` subprocesses streaming their lines as chunks, or the refusal. Holds no
         connection of its own: each step takes the warehouse lock exactly as a CLI run would."""
-        root = self.server.root
         try:
             month = next_month(read_months(root))
         except Unreadable as err:
             busy = str(err) == BUSY
-            self._json(HTTPStatus.CONFLICT if busy else HTTPStatus.SERVICE_UNAVAILABLE,
-                       {"status": "busy" if busy else "fail", "message": str(err)})
-            return
+            return (HTTPStatus.CONFLICT if busy else HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"status": "busy" if busy else "fail", "message": str(err)})
         if month is None:
-            self._json(HTTPStatus.CONFLICT, {"status": "busy", "message": ALL_CLOSED})
-            return
-        self._stream(lambda emit: (emit(f"closing {month} (a mini close takes about forty seconds)"),
-                                   run_close(root.resolve(), month, emit)))
+            return HTTPStatus.CONFLICT, {"status": "busy", "message": ALL_CLOSED}
+        return lambda emit: (emit(f"closing {month} (a mini close takes about forty seconds)"),
+                             run_close(root.resolve(), month, emit))
 
     def _stream(self, work) -> None:
         """Answer 200 chunked text and pass `work` the function that writes one line of it."""

@@ -126,6 +126,17 @@ def cli_months(root: Path) -> list[dict]:
     return [{k: m[k] for k in ("month", "status", "result_hash")} for m in result.json["months"]]
 
 
+def wait_unlocked() -> None:
+    """Give the server up to two seconds to release the action lock, then assert it is free. A client can
+    read a response before the handler thread has run its last statement, so every response is
+    checked this way rather than by a direct read of the lock."""
+    for _ in range(200):
+        if not serve.ACTION_LOCK.locked():
+            break
+        time.sleep(0.01)
+    assert not serve.ACTION_LOCK.locked()
+
+
 def tag(page: str, element: str, id_: str) -> str:
     """The opening tag of `<element id=id_>`."""
     found = re.search(rf"<{element}\b[^>]*\bid=\"{id_}\"[^>]*>", page)
@@ -246,7 +257,7 @@ def test_the_409_names_the_action_that_holds_the_lock(served, monkeypatch):
 def test_an_error_name_outside_the_list_is_404(served):
     res = served.post("/inject/no_such_error")
     assert res.status == 404
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
 
 
 @pytest.mark.parametrize("path", ["/close", "/reset", "/inject/sign_flip"])
@@ -310,7 +321,7 @@ def test_a_close_streams_closes_the_next_month_and_builds_its_memo(private_serve
     again = server.post("/close")
     assert again.status == 409
     assert again.json == {"status": "busy", "message": "every month of the books is closed"}
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
 
     state = margin("status", "--fixture", "mini", "--warehouse", str(server.root / "serve.duckdb"), "--json").json
     for path in ("/", "/health", "/site/2026-04/index.html"):
@@ -327,7 +338,7 @@ def test_a_close_streams_closes_the_next_month_and_builds_its_memo(private_serve
     assert server.get("/site/2026-04/index.html").status == 404
     assert server.get(f"/site/{MONTH}/index.html").status == 200
     assert "disabled" not in tag(server.get("/").text, "button", "close-button")
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
 
 
 def test_a_close_that_fails_reports_the_exit_and_leaves_the_month_open(private_server, tmp_path, monkeypatch):
@@ -341,7 +352,7 @@ def test_a_close_that_fails_reports_the_exit_and_leaves_the_month_open(private_s
     assert re.fullmatch(r"failed exit 4: .+", lines[-1])
     assert not any(line.startswith("running the scenario") for line in lines)
     assert cli_months(private_server.root) == before
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
     private_server.assert_lock_free()
 
 
@@ -382,7 +393,7 @@ def test_a_planted_sign_flip_streams_and_ends_with_the_control_that_caught_it(pr
     assert sha256(warehouse) == served_before  # the served warehouse is never touched
     assert cli_months(server.root) == months_before
     assert len(made) == 1 and not Path(made[0]).exists()
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
     server.assert_lock_free()
 
 
@@ -394,7 +405,7 @@ def test_an_unknown_planted_error_is_404_and_starts_nothing(served, monkeypatch)
     res = served.post("/inject/no_such_error")
     assert res.status == 404
     assert res.json == {"status": "fail", "message": "not found"}
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
 
 
 def test_a_planted_error_that_cannot_be_injected_reports_the_exit(private_server, monkeypatch):
@@ -409,7 +420,7 @@ def test_a_planted_error_that_cannot_be_injected_reports_the_exit(private_server
     res, lines = post_stream(private_server, "/inject/sign_flip")
     assert res.status == 200
     assert lines == ["planting sign_flip in a copy of the books", "failed exit 2: no such books"]
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
 
 
 def test_a_planted_error_that_the_close_passes_says_so(private_server, monkeypatch):
@@ -436,7 +447,7 @@ def test_a_reset_puts_the_pristine_warehouse_and_site_back(private_server):
     assert server.get(f"/site/{MONTH}/index.html").text != "tampered"
     assert not [p.name for p in server.root.iterdir() if p.name.startswith(("site.", "serve.duckdb."))
                 and p.name != "serve.duckdb.lock"]
-    assert not serve.ACTION_LOCK.locked()
+    wait_unlocked()
     server.assert_lock_free()
 
 
